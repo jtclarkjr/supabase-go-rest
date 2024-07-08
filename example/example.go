@@ -3,7 +3,7 @@ package main
 // import (
 // "encoding/json"
 // "fmt"
-// supabase "https://github.com/jtclarkjr/supabase-go-rest"
+// "https://github.com/jtclarkjr/supabase-go-rest"
 // "net/http"
 
 // "github.com/go-chi/chi/v5"
@@ -17,7 +17,7 @@ package main
 
 // func getFoodHandler(w http.ResponseWriter, r *http.Request) {
 // 	token := r.Header.Get("Authorization")
-// 	client := supabaseclient.Client(supabaseBaseUrl, supabaseKey, token)
+// 	client := supabase.Client(supabaseBaseUrl, supabaseKey, token)
 
 // 	// Handle query parameters
 // 	query := r.URL.Query()
@@ -39,7 +39,7 @@ package main
 // func createFoodHandler(w http.ResponseWriter, r *http.Request) {
 // 	token := r.Header.Get("Authorization")
 
-// 	client := supabaseclient.Client(supabaseBaseUrl, supabaseKey, token)
+// 	client := supabase.Client(supabaseBaseUrl, supabaseKey, token)
 
 // 	var data map[string]interface{}
 // 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
@@ -73,7 +73,7 @@ package main
 // 		return
 // 	}
 
-// 	client := supabaseclient.Client(supabaseBaseUrl, supabaseKey, token)
+// 	client := supabase.Client(supabaseBaseUrl, supabaseKey, token)
 
 // 	var data map[string]interface{}
 // 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
@@ -107,7 +107,7 @@ package main
 // 		return
 // 	}
 
-// 	client := supabaseclient.Client(supabaseBaseUrl, supabaseKey, token)
+// 	client := supabase.Client(supabaseBaseUrl, supabaseKey, token)
 // 	body, err := client.Delete(fmt.Sprintf("food?id=eq.%s", itemId))
 // 	if err != nil {
 // 		http.Error(w, fmt.Sprintf("Failed to delete food data: %v", err), http.StatusInternalServerError)

@@ -17,8 +17,8 @@ type TClient struct {
 
 const restApiPath = "/rest/v1"
 
-// NewClient creates a new Supabase client
-func NewClient(baseUrl, apiKey, token string) *TClient {
+// Client creates a new Supabase client
+func Client(baseUrl, apiKey, token string) *TClient {
 	return &TClient{
 		BaseUrl: baseUrl,
 		ApiKey:  apiKey,
@@ -53,7 +53,7 @@ func (c *TClient) Delete(endpoint string) ([]byte, error) {
 // doRequest performs the actual HTTP request
 func (c *TClient) doRequest(method, endpoint string, queryParams map[string]string, body io.Reader) ([]byte, error) {
 	urlStr := fmt.Sprintf("%s%s/%s", c.BaseUrl, restApiPath, endpoint)
-	if queryParams != nil && len(queryParams) > 0 {
+	if len(queryParams) > 0 {
 		urlObj, err := url.Parse(urlStr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse URL: %v", err)

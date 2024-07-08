@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 )
 
 // TClient represents the Supabase client
@@ -26,8 +27,12 @@ func NewClient(baseUrl, apiKey, token string) *TClient {
 }
 
 // Get performs a GET request to the Supabase REST API
-func (c *TClient) Get(endpoint string, queryParams map[string]string) ([]byte, error) {
-	return c.doRequest("GET", endpoint, queryParams, nil)
+func (c *TClient) Get(endpoint string, queryParams ...map[string]string) ([]byte, error) {
+	params := map[string]string{}
+	if len(queryParams) > 0 {
+		params = queryParams[0]
+	}
+	return c.doRequest("GET", endpoint, params, nil)
 }
 
 // Post performs a POST request to the Supabase REST API
@@ -47,16 +52,21 @@ func (c *TClient) Delete(endpoint string) ([]byte, error) {
 
 // doRequest performs the actual HTTP request
 func (c *TClient) doRequest(method, endpoint string, queryParams map[string]string, body io.Reader) ([]byte, error) {
-	url := fmt.Sprintf("%s%s/%s", c.BaseUrl, restApiPath, endpoint)
-	if queryParams != nil {
-		q := url + "?"
-		for key, value := range queryParams {
-			q += fmt.Sprintf("%s=%s&", key, value)
+	urlStr := fmt.Sprintf("%s%s/%s", c.BaseUrl, restApiPath, endpoint)
+	if queryParams != nil && len(queryParams) > 0 {
+		urlObj, err := url.Parse(urlStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse URL: %v", err)
 		}
-		url = q[:len(q)-1] // remove the trailing '&'
+		q := urlObj.Query()
+		for key, value := range queryParams {
+			q.Add(key, value)
+		}
+		urlObj.RawQuery = q.Encode()
+		urlStr = urlObj.String()
 	}
 
-	req, err := http.NewRequest(method, url, body)
+	req, err := http.NewRequest(method, urlStr, body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %v", err)
 	}

@@ -1,4 +1,4 @@
-package main
+package supabase
 
 import (
 	"bytes"
@@ -7,6 +7,7 @@ import (
 	"net/http"
 )
 
+// TClient represents the Supabase client
 type TClient struct {
 	BaseUrl string
 	ApiKey  string
@@ -15,8 +16,8 @@ type TClient struct {
 
 const restApiPath = "/rest/v1"
 
-// Client creates a new Supabase client
-func Client(baseUrl, apiKey, token string) *TClient {
+// NewClient creates a new Supabase client
+func NewClient(baseUrl, apiKey, token string) *TClient {
 	return &TClient{
 		BaseUrl: baseUrl,
 		ApiKey:  apiKey,
@@ -71,7 +72,7 @@ func (c *TClient) doRequest(method, endpoint string, queryParams map[string]stri
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusNoContent {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("error: %s", string(body))
 	}

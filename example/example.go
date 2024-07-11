@@ -15,26 +15,34 @@ package main
 // 	supabaseKey     = "your-supabase-api-key"
 // )
 
-// func getFoodHandler(w http.ResponseWriter, r *http.Request) {
-// 	token := r.Header.Get("Authorization")
-// 	client := supabase.Client(supabaseBaseUrl, supabaseKey, token)
-
-// 	// Handle query parameters
-// 	query := r.URL.Query()
-// 	queryParams := make(map[string]string)
-// 	for key := range query {
-// 		queryParams[key] = query.Get(key)
-// 	}
-
-// 	body, err := client.Get("food", queryParams)
-// 	if err != nil {
-// 		http.Error(w, fmt.Sprintf("Failed to get food data: %v", err), http.StatusInternalServerError)
-// 		return
-// 	}
-
-// 	w.Header().Set("Content-Type", "application/json")
-// 	w.Write(body)
-// }
+//  func getFoodHandler(w http.ResponseWriter, r *http.Request) {
+//		token := r.Header.Get("Authorization")
+//		if token == "" {
+//			http.Error(w, "Authorization token missing", http.StatusUnauthorized)
+//			return
+//		}
+//
+//		client := supabase.Client(supabaseUrl, supabaseKey, token)
+//
+//		query := r.URL.Query()
+//		queryParams := make(map[string]string)
+//		for key := range query {
+//			// Modify the query parameter format to be compatible with Supabase
+//			queryParams[key] = fmt.Sprintf("eq.%s", url.QueryEscape(query.Get(key)))
+//		}
+//
+//		body, err := client.Get("Food", queryParams)
+//		if err != nil {
+//			http.Error(w, "Error fetching data from Supabase", http.StatusInternalServerError)
+//			return
+//		}
+//
+//		w.Header().Set("Content-Type", "application/json")
+//		_, err = w.Write(body)
+//		if err != nil {
+//			log.Printf("Error writing response: %v", err)
+//		}
+//  }
 
 // func createFoodHandler(w http.ResponseWriter, r *http.Request) {
 // 	token := r.Header.Get("Authorization")

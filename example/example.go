@@ -3,7 +3,7 @@ package main
 // import (
 // "encoding/json"
 // "fmt"
-// "https://github.com/jtclarkjr/supabase-go-rest"
+// "github.com/jtclarkjr/supabase-go-rest"
 // "net/http"
 
 // "github.com/go-chi/chi/v5"

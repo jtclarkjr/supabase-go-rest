@@ -10,4 +10,4 @@ Alternatively use community package for other functionalies like storage and edg
 
 ## Examples
 
-Example.go
+[example.go](https://github.com/jtclarkjr/supabase-go-rest/blob/main/example/example.go)

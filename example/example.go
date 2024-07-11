@@ -81,6 +81,7 @@ func createFoodHandler(w http.ResponseWriter, r *http.Request) {
 
 	token := strings.TrimPrefix(authHeader, "Bearer ")
 
+	// userId for RLS set for auth.id action only
 	// ExtractUserId not included in example but this pull id from token
 	userID, err := utils.ExtractUserId(token)
 	if err != nil {
@@ -136,6 +137,7 @@ func updateFoodHandler(w http.ResponseWriter, r *http.Request) {
 
 	token := strings.TrimPrefix(authHeader, "Bearer ")
 
+	// userId for RLS set for auth.id action only
 	// ExtractUserId not included in example but this pull id from token
 	userID, err := utils.ExtractUserId(token)
 	if err != nil {
@@ -200,7 +202,7 @@ func deleteFoodHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := supabase.Client(supabaseUrl, supabaseKey, token)
-	body, err := client.Delete(fmt.Sprintf("food?id=eq.%s", itemId))
+	body, err := client.Delete(fmt.Sprintf("Food?id=eq.%s", itemId))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to delete food data: %v", err), http.StatusInternalServerError)
 		return

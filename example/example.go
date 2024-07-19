@@ -171,9 +171,8 @@ func updateFoodHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url := fmt.Sprintf("Food?id=eq.%s", itemId)
-
-	body, err := client.Put(url, jsonData)
+	primaryKey := "id"
+	body, err := client.Put("Food", primaryKey, itemId, jsonData)
 	if err != nil {
 		log.Printf("Supabase PUT request error: %v", err)
 		http.Error(w, fmt.Sprintf("Failed to update food data: %v", err), http.StatusInternalServerError)

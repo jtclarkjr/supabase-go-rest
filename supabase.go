@@ -41,7 +41,7 @@ func (c *Client) Post(endpoint string, data []byte) ([]byte, error) {
 }
 
 // Put performs a PUT request to the Supabase REST API
-func (c *Client) Put(endpoint, primaryKeyName, primaryKeyValue string, data []byte) ([]byte, error) {
+func (c *Client) Put(endpoint string, primaryKeyName string, primaryKeyValue string, data []byte) ([]byte, error) {
 	query := fmt.Sprintf("%s=eq.%s", primaryKeyName, url.QueryEscape(primaryKeyValue))
 	return c.doRequest("PUT", endpoint, map[string]string{query: ""}, bytes.NewBuffer(data))
 }

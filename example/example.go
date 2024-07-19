@@ -5,6 +5,7 @@ package example
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/jtclarkjr/supabase-go-rest"
 	"log"
 	"net/http"
 	"strconv"
@@ -156,8 +157,6 @@ func updateFoodHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	food.UserID = userID
-
-	// Ensure the primary key is included in the request body
 	foodId, err := strconv.ParseInt(itemId, 10, 64)
 	if err != nil {
 		http.Error(w, "Invalid item ID", http.StatusBadRequest)
@@ -171,6 +170,7 @@ func updateFoodHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Ensure the primary key is included in the request body
 	primaryKey := "id"
 	body, err := client.Put("Food", primaryKey, itemId, jsonData)
 	if err != nil {

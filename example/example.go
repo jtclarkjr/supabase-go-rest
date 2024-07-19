@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jtclarkjr/supabase-go-rest"
+	"github.com/jtclarkjr/supabase-go-rest/example/utils"
 	"log"
 	"net/http"
 	"strconv"
@@ -197,7 +198,9 @@ func deleteFoodHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := supabase.NewClient(supabaseUrl, supabaseKey, token)
-	body, err := client.Delete(fmt.Sprintf("Food?id=eq.%s", itemId))
+	primaryKey := "id"
+	body, err := client.Delete("Food", primaryKey, itemId)
+
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to delete food data: %v", err), http.StatusInternalServerError)
 		return

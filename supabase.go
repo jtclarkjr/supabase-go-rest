@@ -26,7 +26,7 @@ func NewClient(baseUrl, apiKey, token string) *Client {
 	}
 }
 
-// Get performs a GET request to the Supabase REST API
+// Get performs a GET request to the Supabase REST API. Requires table name and query param.
 func (c *Client) Get(endpoint string, queryParams ...map[string]string) ([]byte, error) {
 	params := map[string]string{}
 	if len(queryParams) > 0 {
@@ -35,20 +35,25 @@ func (c *Client) Get(endpoint string, queryParams ...map[string]string) ([]byte,
 	return c.doRequest("GET", endpoint, params, nil)
 }
 
-// Post performs a POST request to the Supabase REST API
+// Post performs a POST request to the Supabase REST API. Requires table name, and request data.
 func (c *Client) Post(endpoint string, data []byte) ([]byte, error) {
 	return c.doRequest("POST", endpoint, nil, bytes.NewBuffer(data))
 }
 
-// Put performs a PUT request to the Supabase REST API
+// Put performs a PUT request to the Supabase REST API. Requires table name, primary key, primary key value, and request data.
 func (c *Client) Put(endpoint string, primaryKeyName string, primaryKeyValue string, data []byte) ([]byte, error) {
-	query := fmt.Sprintf("%s=eq.%s", primaryKeyName, url.QueryEscape(primaryKeyValue))
-	return c.doRequest("PUT", endpoint, map[string]string{query: ""}, bytes.NewBuffer(data))
+	query := map[string]string{
+		primaryKeyName: primaryKeyValue,
+	}
+	return c.doRequest("PUT", endpoint, query, bytes.NewBuffer(data))
 }
 
-// Delete performs a DELETE request to the Supabase REST API
-func (c *Client) Delete(endpoint string) ([]byte, error) {
-	return c.doRequest("DELETE", endpoint, nil, nil)
+// Delete performs a DELETE request to the Supabase REST API. Requires table name, primary key, and primary key value.
+func (c *Client) Delete(endpoint string, primaryKeyName string, primaryKeyValue string) ([]byte, error) {
+	query := map[string]string{
+		primaryKeyName: primaryKeyValue,
+	}
+	return c.doRequest("DELETE", endpoint, query, nil)
 }
 
 // formatQueryParams formats query parameters for Supabase compatibility
@@ -60,7 +65,7 @@ func formatQueryParams(params map[string]string) map[string]string {
 	return formattedParams
 }
 
-// doRequest performs the actual HTTP request
+// doRequest performs the actual HTTP request. Requires API key, and Token for headers
 func (c *Client) doRequest(method, endpoint string, queryParams map[string]string, body io.Reader) ([]byte, error) {
 	urlStr := fmt.Sprintf("%s%s/%s", c.BaseUrl, restApiPath, endpoint)
 	if len(queryParams) > 0 {

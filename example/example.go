@@ -7,11 +7,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
-
-	"github.com/jtclarkjr/supabase-go-rest"
 
 	"github.com/google/uuid"
 
@@ -50,13 +47,12 @@ func getFoodHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client := supabase.Client(supabaseUrl, supabaseKey, token)
+	client := supabase.NewClient(supabaseUrl, supabaseKey, token)
 
 	query := r.URL.Query()
 	queryParams := make(map[string]string)
 	for key := range query {
-		// Modify the query parameter format to be compatible with Supabase
-		queryParams[key] = fmt.Sprintf("eq.%s", url.QueryEscape(query.Get(key)))
+		queryParams[key] = query.Get(key)
 	}
 
 	body, err := client.Get("Food", queryParams)
@@ -89,7 +85,7 @@ func createFoodHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client := supabase.Client(supabaseUrl, supabaseKey, authHeader)
+	client := supabase.NewClient(supabaseUrl, supabaseKey, authHeader)
 
 	var food FoodCreate
 	if err := json.NewDecoder(r.Body).Decode(&food); err != nil {
@@ -151,7 +147,7 @@ func updateFoodHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client := supabase.Client(supabaseUrl, supabaseKey, authHeader)
+	client := supabase.NewClient(supabaseUrl, supabaseKey, authHeader)
 
 	var food FoodUpdate
 	if err := json.NewDecoder(r.Body).Decode(&food); err != nil {
@@ -201,7 +197,7 @@ func deleteFoodHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client := supabase.Client(supabaseUrl, supabaseKey, token)
+	client := supabase.NewClient(supabaseUrl, supabaseKey, token)
 	body, err := client.Delete(fmt.Sprintf("Food?id=eq.%s", itemId))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to delete food data: %v", err), http.StatusInternalServerError)

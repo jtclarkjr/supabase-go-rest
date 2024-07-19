@@ -8,8 +8,8 @@ import (
 	"net/url"
 )
 
-// TClient represents the Supabase client
-type TClient struct {
+// Client represents the Supabase client
+type Client struct {
 	BaseUrl string
 	ApiKey  string
 	Token   string
@@ -17,9 +17,9 @@ type TClient struct {
 
 const restApiPath = "/rest/v1"
 
-// Client creates a new Supabase client
-func Client(baseUrl, apiKey, token string) *TClient {
-	return &TClient{
+// NewClient creates a new Supabase client
+func NewClient(baseUrl, apiKey, token string) *Client {
+	return &Client{
 		BaseUrl: baseUrl,
 		ApiKey:  apiKey,
 		Token:   token,
@@ -27,7 +27,7 @@ func Client(baseUrl, apiKey, token string) *TClient {
 }
 
 // Get performs a GET request to the Supabase REST API
-func (c *TClient) Get(endpoint string, queryParams ...map[string]string) ([]byte, error) {
+func (c *Client) Get(endpoint string, queryParams ...map[string]string) ([]byte, error) {
 	params := map[string]string{}
 	if len(queryParams) > 0 {
 		params = queryParams[0]
@@ -36,22 +36,31 @@ func (c *TClient) Get(endpoint string, queryParams ...map[string]string) ([]byte
 }
 
 // Post performs a POST request to the Supabase REST API
-func (c *TClient) Post(endpoint string, data []byte) ([]byte, error) {
+func (c *Client) Post(endpoint string, data []byte) ([]byte, error) {
 	return c.doRequest("POST", endpoint, nil, bytes.NewBuffer(data))
 }
 
 // Put performs a PUT request to the Supabase REST API
-func (c *TClient) Put(endpoint string, data []byte) ([]byte, error) {
+func (c *Client) Put(endpoint string, data []byte) ([]byte, error) {
 	return c.doRequest("PUT", endpoint, nil, bytes.NewBuffer(data))
 }
 
 // Delete performs a DELETE request to the Supabase REST API
-func (c *TClient) Delete(endpoint string) ([]byte, error) {
+func (c *Client) Delete(endpoint string) ([]byte, error) {
 	return c.doRequest("DELETE", endpoint, nil, nil)
 }
 
+// formatQueryParams formats query parameters for Supabase compatibility
+func formatQueryParams(params map[string]string) map[string]string {
+	formattedParams := make(map[string]string)
+	for key, value := range params {
+		formattedParams[key] = fmt.Sprintf("eq.%s", url.QueryEscape(value))
+	}
+	return formattedParams
+}
+
 // doRequest performs the actual HTTP request
-func (c *TClient) doRequest(method, endpoint string, queryParams map[string]string, body io.Reader) ([]byte, error) {
+func (c *Client) doRequest(method, endpoint string, queryParams map[string]string, body io.Reader) ([]byte, error) {
 	urlStr := fmt.Sprintf("%s%s/%s", c.BaseUrl, restApiPath, endpoint)
 	if len(queryParams) > 0 {
 		urlObj, err := url.Parse(urlStr)
@@ -59,7 +68,7 @@ func (c *TClient) doRequest(method, endpoint string, queryParams map[string]stri
 			return nil, fmt.Errorf("failed to parse URL: %v", err)
 		}
 		q := urlObj.Query()
-		for key, value := range queryParams {
+		for key, value := range formatQueryParams(queryParams) {
 			q.Add(key, value)
 		}
 		urlObj.RawQuery = q.Encode()
@@ -80,7 +89,12 @@ func (c *TClient) doRequest(method, endpoint string, queryParams map[string]stri
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			fmt.Println("Error closing response body:", err)
+		}
+	}(resp.Body)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)

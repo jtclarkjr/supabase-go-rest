@@ -7,4 +7,4 @@ require (
 	github.com/google/uuid v1.6.0
 )
 
-require github.com/jtclarkjr/supabase-go-rest v0.0.5 // indirect
+require github.com/jtclarkjr/supabase-go-rest v0.0.6

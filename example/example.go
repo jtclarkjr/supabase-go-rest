@@ -8,8 +8,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
+	"github.com/jtclarkjr/supabase-go-rest"
 	"github.com/jtclarkjr/supabase-go-rest/example/utils"
 )
 

@@ -48,6 +48,11 @@ func (c *Client) Put(endpoint string, primaryKeyName string, primaryKeyValue str
 	return c.doRequest("PUT", endpoint, query, bytes.NewBuffer(data))
 }
 
+// Patch performs a PATCH request to the Supabase REST API. Requires table name, query parameters, and request data.
+func (c *Client) Patch(endpoint string, queryParams map[string]string, data []byte) ([]byte, error) {
+	return c.doRequest("PATCH", endpoint, queryParams, bytes.NewBuffer(data))
+}
+
 // Delete performs a DELETE request to the Supabase REST API. Requires table name, primary key, and primary key value.
 func (c *Client) Delete(endpoint string, primaryKeyName string, primaryKeyValue string) ([]byte, error) {
 	query := map[string]string{

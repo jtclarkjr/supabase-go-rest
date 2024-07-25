@@ -1,21 +1,16 @@
-// Example pulled from working project
-
 package example
 
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/jtclarkjr/supabase-go-rest"
-	"github.com/jtclarkjr/supabase-go-rest/example/utils"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/google/uuid"
-
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
+	"github.com/jtclarkjr/supabase-go-rest/example/utils"
 )
 
 var (
@@ -42,6 +37,7 @@ type FoodUpdate struct {
 	Image      string    `json:"image"`
 }
 
+// Handler for GET
 func getFoodHandler(w http.ResponseWriter, r *http.Request) {
 	token := r.Header.Get("Authorization")
 	if token == "" {
@@ -70,6 +66,7 @@ func getFoodHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Handler for POST
 func createFoodHandler(w http.ResponseWriter, r *http.Request) {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
@@ -118,10 +115,8 @@ func createFoodHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// primary key need to be in request body for PUT
-// https://docs.postgrest.org/en/v12/references/api/tables_views.html#put
-
-func updateFoodHandler(w http.ResponseWriter, r *http.Request) {
+// Handler for PUT
+func putFoodHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
@@ -187,6 +182,54 @@ func updateFoodHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Handler for PATCH
+// https://docs.postgrest.org/en/v12/references/api/tables_views.html#update
+func patchFoodHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		http.Error(w, "Authorization token missing", http.StatusUnauthorized)
+		return
+	}
+
+	client := supabase.NewClient(supabaseUrl, supabaseKey, authHeader)
+
+	query := r.URL.Query()
+	queryParams := make(map[string]string)
+	for key := range query {
+		queryParams[key] = query.Get(key)
+	}
+
+	var updateData map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&updateData); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	jsonData, err := json.Marshal(updateData)
+	if err != nil {
+		http.Error(w, "Failed to marshal JSON", http.StatusInternalServerError)
+		return
+	}
+
+	body, err := client.Patch("Food", queryParams, jsonData)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to update food data: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_, err = w.Write(body)
+	if err != nil {
+		log.Printf("Error writing response: %v", err)
+	}
+}
+
+// Handler for DELETE
 func deleteFoodHandler(w http.ResponseWriter, r *http.Request) {
 	token := r.Header.Get("Authorization")
 
@@ -220,7 +263,8 @@ func main() {
 	r.Route("/v1", func(r chi.Router) {
 		r.Get("/food", getFoodHandler)
 		r.Post("/food", createFoodHandler)
-		r.Put("/food/{itemId}", updateFoodHandler)
+		r.Put("/food/{itemId}", putFoodHandler)
+		r.Patch("/food", patchFoodHandler)
 		r.Delete("/food/{itemId}", deleteFoodHandler)
 	})
 

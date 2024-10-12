@@ -39,14 +39,6 @@ type FoodUpdate struct {
 	Image      string    `json:"image"`
 }
 
-type TokenRequestPayload struct {
-	Email        string `json:"email,omitempty"`
-	Phone        string `json:"phone,omitempty"`
-	Password     string `json:"password,omitempty"`
-	RefreshToken string `json:"refresh_token,omitempty"`
-	GrantType    string `json:"grant_type"`
-}
-
 // AuthTokenResponse represents the response from the /token endpoint
 type AuthTokenResponse struct {
 	AccessToken  string `json:"access_token"`
@@ -280,7 +272,7 @@ func deleteFoodHandler(w http.ResponseWriter, r *http.Request) {
 
 // Handler for POST /auth/token (Login via Email, Phone, or Refresh Token)
 func authTokenHandler(w http.ResponseWriter, r *http.Request) {
-	var payload TokenRequestPayload
+	var payload supabase.TokenRequestPayload
 
 	// Decode the request body
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {

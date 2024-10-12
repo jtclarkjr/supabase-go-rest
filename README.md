@@ -1,6 +1,6 @@
 # Supabase Go Rest
 
-Supabase Go Client that makes use of Supabase Rest API. This only makes use of Supabase's Integration with Postgrest REST API.
+Supabase Go Client that makes use of Supabase Rest API. This only makes use of Sublease's Integration with Postgrest REST API.
 
 Goal is to make use of Supabase REST API in Go to have a middle layer API between supabase while being able to handle tokens generated from supabase for Authenticated users to use RLS, such as tokens from client/app side.
 This means the main requirement if using RLS on supabase side is needing to pass a token to the given request.
@@ -11,7 +11,7 @@ Auth for email/password to get token (intent is to generate a token to test)
 
 [Supabase REST API doc](https://supabase.com/docs/guides/api)
 
-Alternatively use community package for other functionalies like storage and edge functions. [supabase-community/supabase-go](https://github.com/supabase-community/supabase-go)
+Alternatively use community package for other functionalities like storage and edge functions. [supabase-community/supabase-go](https://github.com/supabase-community/supabase-go)
 
 ## Examples
 

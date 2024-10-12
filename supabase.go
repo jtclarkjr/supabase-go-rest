@@ -2,8 +2,10 @@ package supabase
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 )
@@ -13,6 +15,22 @@ type Client struct {
 	BaseUrl string
 	ApiKey  string
 	Token   string
+}
+
+type AuthTokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+// TokenRequestPayload represents the payload for /token requests
+type TokenRequestPayload struct {
+	Email        string `json:"email,omitempty"`
+	Phone        string `json:"phone,omitempty"`
+	Password     string `json:"password,omitempty"`
+	RefreshToken string `json:"refresh_token,omitempty"`
+	GrantType    string `json:"grant_type"`
 }
 
 const restApiPath = "/rest/v1"
@@ -70,6 +88,47 @@ func formatQueryParams(params map[string]string) map[string]string {
 	return formattedParams
 }
 
+// AuthToken performs a POST request to the /token endpoint for authentication
+func (c *Client) AuthToken(payload TokenRequestPayload) (*AuthTokenResponse, error) {
+	endpoint := "/token"
+
+	// Prepare the request body
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request body: %v", err)
+	}
+
+	urlStr := fmt.Sprintf("%s%s%s", c.BaseUrl, restApiPath, endpoint)
+	req, err := http.NewRequest("POST", urlStr, bytes.NewBuffer(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	// Use the API key stored in the Client struct
+	req.Header.Set("apikey", c.ApiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to perform request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("error: %s", string(body))
+	}
+
+	// Parse the response
+	var authResponse AuthTokenResponse
+	if err := json.NewDecoder(resp.Body).Decode(&authResponse); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	return &authResponse, nil
+}
+
 // doRequest performs the actual HTTP request. Requires API key, and Token for headers
 func (c *Client) doRequest(method, endpoint string, queryParams map[string]string, body io.Reader) ([]byte, error) {
 	urlStr := fmt.Sprintf("%s%s/%s", c.BaseUrl, restApiPath, endpoint)
@@ -92,7 +151,12 @@ func (c *Client) doRequest(method, endpoint string, queryParams map[string]strin
 	}
 
 	req.Header.Set("apikey", c.ApiKey)
-	req.Header.Set("Authorization", c.Token)
+
+	// Set Authorization header only if token is provided
+	if c.Token != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	}
+
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
@@ -100,12 +164,12 @@ func (c *Client) doRequest(method, endpoint string, queryParams map[string]strin
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform request: %v", err)
 	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			fmt.Println("Error closing response body:", err)
+
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Error closing response body: %v", err)
 		}
-	}(resp.Body)
+	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)

@@ -39,7 +39,24 @@ type FoodUpdate struct {
 	Image      string    `json:"image"`
 }
 
+type TokenRequestPayload struct {
+	Email        string `json:"email,omitempty"`
+	Phone        string `json:"phone,omitempty"`
+	Password     string `json:"password,omitempty"`
+	RefreshToken string `json:"refresh_token,omitempty"`
+	GrantType    string `json:"grant_type"`
+}
+
+// AuthTokenResponse represents the response from the /token endpoint
+type AuthTokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
+	RefreshToken string `json:"refresh_token"`
+}
+
 // Handler for GET
+// https://docs.postgrest.org/en/v12/references/api/tables_views.html#get
 func getFoodHandler(w http.ResponseWriter, r *http.Request) {
 	token := r.Header.Get("Authorization")
 	if token == "" {
@@ -69,6 +86,7 @@ func getFoodHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Handler for POST
+// https://docs.postgrest.org/en/v12/references/api/tables_views.html#create
 func createFoodHandler(w http.ResponseWriter, r *http.Request) {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
@@ -118,6 +136,7 @@ func createFoodHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Handler for PUT
+// https://docs.postgrest.org/en/v12/references/api/tables_views.html#put
 func putFoodHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
@@ -232,6 +251,7 @@ func patchFoodHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Handler for DELETE
+// https://docs.postgrest.org/en/v12/references/api/tables_views.html#delete
 func deleteFoodHandler(w http.ResponseWriter, r *http.Request) {
 	token := r.Header.Get("Authorization")
 
@@ -258,11 +278,40 @@ func deleteFoodHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Handler for POST /auth/token (Login via Email, Phone, or Refresh Token)
+func authTokenHandler(w http.ResponseWriter, r *http.Request) {
+	var payload TokenRequestPayload
+
+	// Decode the request body
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	client := supabase.NewClient(supabaseUrl, supabaseKey, "") // Empty token initially
+
+	// Prepare and send the /token request to Supabase
+	authResponse, err := client.AuthToken(payload)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to authenticate: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Return the token response
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(authResponse); err != nil {
+		log.Printf("Error writing response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
+}
+
 func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 
 	r.Route("/v1", func(r chi.Router) {
+		r.Post("/auth/token", authTokenHandler)
+
 		r.Get("/food", getFoodHandler)
 		r.Post("/food", createFoodHandler)
 		r.Put("/food/{itemId}", putFoodHandler)

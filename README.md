@@ -14,3 +14,11 @@ Alternatively use community package for other functionalies like storage and edg
 ## Examples
 
 [example.go](https://github.com/jtclarkjr/supabase-go-rest/blob/main/example/example.go)
+
+Example running in local for example.go code:
+```
+curl -X GET "https://localhost:8080/food" \
+  -H "Authorization: Bearer TOKEN_HERE"
+```
+Here the point is you can define your endpoints and need to pass `Authorization` with Bearer token so that the supabase NewClient import can use the token.
+

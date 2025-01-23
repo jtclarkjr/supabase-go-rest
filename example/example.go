@@ -63,6 +63,9 @@ func getFoodHandler(w http.ResponseWriter, r *http.Request) {
 	for key := range query {
 		queryParams[key] = query.Get(key)
 	}
+ // In query can do many things native to postgrest
+ // Can sort using a column using like ?order=created_at.desc
+ // Can filter using a column name ?food_name="pizza"
 
 	body, err := client.Get("Food", queryParams)
 	if err != nil {

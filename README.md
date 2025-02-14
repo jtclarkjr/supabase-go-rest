@@ -6,6 +6,8 @@ Goal is to make use of Supabase REST API in Go to have a middle layer API betwee
 This means the main requirement if using RLS on supabase side is needing to pass a token to the given request.
 
 GET/POST/PUT/PATCH/DELETE operations
+
+
 Helpful [link](https://docs.postgrest.org/en/v12/references/api/tables_views.html#operators) to know what abbreviations can be included in the request query
 
 Auth for email/password to get token (intent is to generate a token to test)

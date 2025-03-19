@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 )
@@ -17,6 +16,7 @@ type Client struct {
 	Token   string
 }
 
+// AuthTokenResponse represents the response from the /token endpoint
 type AuthTokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	TokenType    string `json:"token_type"`
@@ -33,6 +33,7 @@ type TokenRequestPayload struct {
 	GrantType    string `json:"grant_type"`
 }
 
+// Defined REST API path from Supabase
 const restApiPath = "/rest/v1"
 
 // NewClient creates a new Supabase client
@@ -113,11 +114,15 @@ func (c *Client) AuthToken(payload TokenRequestPayload) (*AuthTokenResponse, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform request: %v", err)
 	}
+
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("error: %s", string(body))
+		bodyBytes, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, fmt.Errorf("failed to read error response: %v", readErr)
+		}
+		return nil, fmt.Errorf("error: %s", string(bodyBytes))
 	}
 
 	// Parse the response
@@ -165,11 +170,7 @@ func (c *Client) doRequest(method, endpoint string, queryParams map[string]strin
 		return nil, fmt.Errorf("failed to perform request: %v", err)
 	}
 
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			log.Printf("Error closing response body: %v", err)
-		}
-	}()
+	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)

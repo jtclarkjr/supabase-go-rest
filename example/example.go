@@ -2,6 +2,7 @@ package example
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -63,9 +64,9 @@ func getFoodHandler(w http.ResponseWriter, r *http.Request) {
 	for key := range query {
 		queryParams[key] = query.Get(key)
 	}
- // In query can do many things native to postgrest
- // Can sort using a column using like ?order=created_at.desc
- // Can filter using a column name ?food_name="pizza"
+	// In query can do many things native to postgrest
+	// Can sort using a column using like ?order=created_at.desc
+	// Can filter using a column name ?food_name="pizza"
 
 	body, err := client.Get("Food", queryParams)
 	if err != nil {
@@ -288,6 +289,17 @@ func authTokenHandler(w http.ResponseWriter, r *http.Request) {
 	// Prepare and send the /token request to Supabase
 	authResponse, err := client.AuthToken(payload)
 	if err != nil {
+		// Handle specific errors from the supabase package
+		if errors.Is(err, supabase.ErrRequestFailed) {
+			http.Error(w, fmt.Sprintf("Supabase request failed: %v", err), http.StatusBadGateway)
+			return
+		}
+		if errors.Is(err, supabase.ErrInvalidResponse) {
+			http.Error(w, fmt.Sprintf("Invalid response from Supabase: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Generic error fallback
 		http.Error(w, fmt.Sprintf("Failed to authenticate: %v", err), http.StatusInternalServerError)
 		return
 	}

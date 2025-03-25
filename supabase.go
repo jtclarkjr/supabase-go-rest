@@ -33,7 +33,7 @@ type TokenRequestPayload struct {
 
 // Defined REST API path from Supabase
 const restApiPath = "/rest/v1"
-const authApiPath = "/auth/v1"
+const authApiPath = "/auth/v1?grant_type=password"
 
 // Custom error types
 var (

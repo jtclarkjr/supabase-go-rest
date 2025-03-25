@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 // Client represents the Supabase client
@@ -160,7 +161,11 @@ func (c *Client) doRequest(method, endpoint string, queryParams map[string]strin
 	req.Header.Set("apikey", c.ApiKey)
 
 	if c.Token != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+		if !strings.HasPrefix(c.Token, "Bearer ") {
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+		} else {
+			req.Header.Set("Authorization", c.Token)
+		}
 	}
 
 	req.Header.Set("Content-Type", "application/json")

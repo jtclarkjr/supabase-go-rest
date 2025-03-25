@@ -35,7 +35,6 @@ curl -X POST http://localhost:8080/v1/auth/token \
 -d '{
   "email": "name@domain.com",
   "password": "somepassword",
-  "grant_type": "password"
 }'
 ```
 

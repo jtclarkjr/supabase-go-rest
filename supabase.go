@@ -27,15 +27,13 @@ type AuthTokenResponse struct {
 
 // TokenRequestPayload represents the payload for /token requests
 type TokenRequestPayload struct {
-	Email        string `json:"email,omitempty"`
-	Phone        string `json:"phone,omitempty"`
-	Password     string `json:"password,omitempty"`
-	RefreshToken string `json:"refresh_token,omitempty"`
-	GrantType    string `json:"grant_type"`
+	Email    string `json:"email,omitempty"`
+	Password string `json:"password,omitempty"`
 }
 
 // Defined REST API path from Supabase
 const restApiPath = "/rest/v1"
+const authApiPath = "/auth/v1"
 
 // Custom error types
 var (
@@ -98,7 +96,6 @@ func formatQueryParams(params map[string]string) map[string]string {
 
 // AuthToken performs a POST request to the /token endpoint for authentication
 func (c *Client) AuthToken(payload TokenRequestPayload) (*AuthTokenResponse, error) {
-	endpoint := "/token"
 
 	// Prepare the request body
 	body, err := json.Marshal(payload)
@@ -106,7 +103,7 @@ func (c *Client) AuthToken(payload TokenRequestPayload) (*AuthTokenResponse, err
 		return nil, fmt.Errorf("AuthToken: failed to marshal request body: %w", err)
 	}
 
-	urlStr := fmt.Sprintf("%s%s%s", c.BaseUrl, restApiPath, endpoint)
+	urlStr := fmt.Sprintf("%s%s", c.BaseUrl, authApiPath)
 	req, err := http.NewRequest("POST", urlStr, bytes.NewBuffer(body))
 	if err != nil {
 		return nil, fmt.Errorf("AuthToken: failed to create request: %w", err)

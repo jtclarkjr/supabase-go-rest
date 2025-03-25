@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 )
@@ -96,42 +97,39 @@ func formatQueryParams(params map[string]string) map[string]string {
 
 // AuthToken performs a POST request to the /token endpoint for authentication
 func (c *Client) AuthToken(payload TokenRequestPayload) (*AuthTokenResponse, error) {
-
-	// Prepare the request body
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return nil, fmt.Errorf("AuthToken: failed to marshal request body: %w", err)
+		log.Printf("Error: AuthToken failed to marshal request body: %v", err)
 	}
 
 	urlStr := fmt.Sprintf("%s%s", c.BaseUrl, authApiPath)
 	req, err := http.NewRequest("POST", urlStr, bytes.NewBuffer(body))
 	if err != nil {
-		return nil, fmt.Errorf("AuthToken: failed to create request: %w", err)
+		log.Printf("Error: AuthToken failed to create request: %v", err)
 	}
 
-	// Use the API key stored in the Client struct
 	req.Header.Set("apikey", c.ApiKey)
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("AuthToken: failed to perform request: %w", err)
+		log.Printf("Error: AuthToken failed to perform request: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bodyBytes, readErr := io.ReadAll(resp.Body)
 		if readErr != nil {
-			return nil, fmt.Errorf("AuthToken: failed to read error response: %w", readErr)
+			log.Printf("Error: AuthToken failed to read error response: %v", readErr)
 		}
-		return nil, fmt.Errorf("AuthToken: %w - %s", ErrRequestFailed, string(bodyBytes))
+		log.Printf("Error: AuthToken: %v - %s", ErrRequestFailed, string(bodyBytes))
+
 	}
 
-	// Parse the response
 	var authResponse AuthTokenResponse
 	if err := json.NewDecoder(resp.Body).Decode(&authResponse); err != nil {
-		return nil, fmt.Errorf("AuthToken: failed to decode response: %w", err)
+		log.Printf("Error: AuthToken failed to decode response: %v", err)
 	}
 
 	return &authResponse, nil
@@ -143,7 +141,8 @@ func (c *Client) doRequest(method, endpoint string, queryParams map[string]strin
 	if len(queryParams) > 0 {
 		urlObj, err := url.Parse(urlStr)
 		if err != nil {
-			return nil, fmt.Errorf("doRequest: failed to parse URL: %w", err)
+			log.Printf("Error: doRequest failed to parse URL - %v", err)
+			return nil, nil
 		}
 		q := urlObj.Query()
 		for key, value := range formatQueryParams(queryParams) {
@@ -155,12 +154,11 @@ func (c *Client) doRequest(method, endpoint string, queryParams map[string]strin
 
 	req, err := http.NewRequest(method, urlStr, body)
 	if err != nil {
-		return nil, fmt.Errorf("doRequest: failed to create request: %w", err)
+		log.Printf("Error: doRequest failed to create request - %v", err)
 	}
 
 	req.Header.Set("apikey", c.ApiKey)
 
-	// Set Authorization header only if token is provided
 	if c.Token != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
 	}
@@ -170,18 +168,18 @@ func (c *Client) doRequest(method, endpoint string, queryParams map[string]strin
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("doRequest: failed to perform request: %w", err)
+		log.Printf("Error: doRequest failed to perform request - %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("doRequest: %w - %s", ErrRequestFailed, string(body))
+		log.Printf("Error: doRequest %v - %s", ErrRequestFailed, string(body))
 	}
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("doRequest: failed to read response body: %w", err)
+		log.Printf("Error: doRequest failed to read response body - %v", err)
 	}
 
 	return responseBody, nil

@@ -12,6 +12,8 @@ Helpful [link](https://docs.postgrest.org/en/v12/references/api/tables_views.htm
 
 Auth for email/password to get token (intent is to generate a token to test)
 
+Note: Bearer is being passed package -> supabase API for requests, so if you manually pass Bearer (API -> package) it will result in Bearer Bearer Token and fail request.
+
 [Supabase REST API doc](https://supabase.com/docs/guides/api)
 
 Alternatively use community package for other functionalities like storage and edge functions. [supabase-community/supabase-go](https://github.com/supabase-community/supabase-go)

@@ -12,7 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
-	"github.com/jtclarkjr/supabase-go-rest"
+	supabase "github.com/jtclarkjr/supabase-go-rest"
 	"github.com/jtclarkjr/supabase-go-rest/example/utils"
 )
 
@@ -274,7 +274,7 @@ func deleteFoodHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Handler for POST /auth/token (Login via Email, Phone, or Refresh Token)
+// Handler for POST /auth/token (Login via Email and Password)
 func authTokenHandler(w http.ResponseWriter, r *http.Request) {
 	var payload supabase.TokenRequestPayload
 
@@ -284,10 +284,16 @@ func authTokenHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Ensure email and password are provided
+	if payload.Email == "" || payload.Password == "" {
+		http.Error(w, "Email and password are required", http.StatusBadRequest)
+		return
+	}
+
 	client := supabase.NewClient(supabaseUrl, supabaseKey, "") // Empty token initially
 
-	// Prepare and send the /token request to Supabase
-	authResponse, err := client.AuthToken(payload)
+	// Perform SignIn
+	authResponse, err := client.SignIn(payload.Email, payload.Password)
 	if err != nil {
 		// Handle specific errors from the supabase package
 		if errors.Is(err, supabase.ErrRequestFailed) {

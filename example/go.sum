@@ -2,5 +2,5 @@ github.com/go-chi/chi/v5 v5.1.0 h1:acVI1TYaD+hhedDJ3r54HyA6sExp3HfXq7QWEEY/xMw=
 github.com/go-chi/chi/v5 v5.1.0/go.mod h1:DslCQbL2OYiznFReuXYUmQ2hGd1aDpCnlMNITLSKoi8=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
-github.com/jtclarkjr/supabase-go-rest v0.0.17 h1:Xjg7MpTFw+s3dQkv6h9+Yn638yDSF6yxU5sk/cJO/OM=
-github.com/jtclarkjr/supabase-go-rest v0.0.17/go.mod h1:LirAYAZLoistwWT/kbNyV0k0jObzMdzBPmlF7aEKJok=
+github.com/jtclarkjr/supabase-go-rest v0.0.19 h1:i8T09W4kjqiRhWfBFdP16Xmpvcy5KJrz1Rp2fvXhhLk=
+github.com/jtclarkjr/supabase-go-rest v0.0.19/go.mod h1:LirAYAZLoistwWT/kbNyV0k0jObzMdzBPmlF7aEKJok=

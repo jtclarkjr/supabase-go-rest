@@ -12,6 +12,12 @@ import (
 	"strings"
 )
 
+/*
+ **********************
+ *   TYPE DEFINITON   *
+ **********************
+ */
+
 // Client represents the Supabase client
 type Client struct {
 	BaseUrl string
@@ -47,6 +53,12 @@ type VerifyOTPPayload struct {
 	Type  string `json:"type"`
 }
 
+/*
+ **************************
+ *   VARIABLE DEFINITON   *
+ **************************
+ */
+
 // Defined REST API paths from Supabase
 const (
 	restApiPath      = "/rest/v1"
@@ -68,6 +80,12 @@ var (
 	ErrRequestFailed   = errors.New("request failed")
 )
 
+/*
+ *******************
+ *   INITIALIZER   *
+ *******************
+ */
+
 // NewClient creates a new Supabase client
 func NewClient(baseUrl, apiKey, token string) *Client {
 	return &Client{
@@ -76,6 +94,12 @@ func NewClient(baseUrl, apiKey, token string) *Client {
 		Token:   token,
 	}
 }
+
+/*
+ ********************
+ *   AUTH METHODS   *
+ ********************
+ */
 
 // SignUp creates a new user
 func (c *Client) SignUp(email, password string) ([]byte, error) {
@@ -222,6 +246,13 @@ func (c *Client) ResetPassword(token, newPassword string) ([]byte, error) {
 	return response, nil
 }
 
+/*
+ ********************
+ *   HTTP METHODS   *
+ ********************
+ */
+
+// Get performs a GET request to the Supabase REST API. Requires table name, and query parameters.
 func (c *Client) Get(endpoint string, queryParams ...map[string]string) ([]byte, error) {
 	params := map[string]string{}
 	if len(queryParams) > 0 {
@@ -255,6 +286,12 @@ func (c *Client) Delete(endpoint string, primaryKeyName string, primaryKeyValue 
 	}
 	return c.doRequest("DELETE", endpoint, query, nil)
 }
+
+/*
+ ********************
+ *   REQ METHODS   *
+ ********************
+ */
 
 // formatQueryParams formats query parameters for Supabase compatibility
 func formatQueryParams(params map[string]string) map[string]string {

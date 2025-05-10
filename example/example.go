@@ -1,4 +1,4 @@
-package example
+package main
 
 import (
 	"encoding/json"
@@ -9,9 +9,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
+	"github.com/jtclarkjr/router-go"
+	"github.com/jtclarkjr/router-go/middleware"
 	supabase "github.com/jtclarkjr/supabase-go-rest"
 	"github.com/jtclarkjr/supabase-go-rest/example/utils"
 )
@@ -155,7 +155,7 @@ func putFoodHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	itemId := chi.URLParam(r, "itemId")
+	itemId := router.URLParam(r, "itemId")
 	if itemId == "" {
 		http.Error(w, "Missing item ID", http.StatusBadRequest)
 		return
@@ -252,7 +252,7 @@ func deleteFoodHandler(w http.ResponseWriter, r *http.Request) {
 	token := r.Header.Get("Authorization")
 
 	// Extract the item ID from the URL path
-	itemId := chi.URLParam(r, "itemId")
+	itemId := router.URLParam(r, "itemId")
 	if itemId == "" {
 		http.Error(w, "Missing item ID", http.StatusBadRequest)
 		return
@@ -319,10 +319,10 @@ func authTokenHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	r := chi.NewRouter()
+	r := router.NewRouter()
 	r.Use(middleware.Logger)
 
-	r.Route("/v1", func(r chi.Router) {
+	r.Route("/v1", func(r *router.Router) {
 		r.Post("/auth/token", authTokenHandler)
 
 		r.Get("/food", getFoodHandler)

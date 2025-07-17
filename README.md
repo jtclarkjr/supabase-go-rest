@@ -208,8 +208,6 @@ curl -X GET "https://localhost:8080/v1/food" \
 - Tokens typically expire and need to be refreshed
 - The Supabase client automatically handles token formatting
 
-[... rest of the previous content remains the same ...]
-
 ## 📝 Important Notes
 
 - Always provide an access token for authenticated requests

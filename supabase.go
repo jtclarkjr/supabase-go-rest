@@ -345,7 +345,9 @@ func (c *Client) authRequest(endpoint string, payload TokenRequestPayload) (*Aut
 
 // doRequest performs the actual HTTP request. Requires API key, and Token for headers
 func (c *Client) doRequest(method, endpoint string, queryParams map[string]string, body io.Reader) ([]byte, error) {
-	urlStr := fmt.Sprintf("%s%s/%s", c.BaseUrl, restApiPath, endpoint)
+	// Normalize endpoint to avoid double slashes when endpoint begins with '/'
+	cleanEndpoint := strings.TrimPrefix(endpoint, "/")
+	urlStr := fmt.Sprintf("%s%s/%s", c.BaseUrl, restApiPath, cleanEndpoint)
 	if len(queryParams) > 0 {
 		urlObj, err := url.Parse(urlStr)
 		if err != nil {
@@ -363,6 +365,7 @@ func (c *Client) doRequest(method, endpoint string, queryParams map[string]strin
 	req, err := http.NewRequest(method, urlStr, body)
 	if err != nil {
 		log.Printf("Error: doRequest failed to create request - %v", err)
+		return nil, err
 	}
 
 	req.Header.Set("apikey", c.ApiKey)
@@ -381,6 +384,7 @@ func (c *Client) doRequest(method, endpoint string, queryParams map[string]strin
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("Error: doRequest failed to perform request - %v", err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 

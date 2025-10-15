@@ -269,7 +269,8 @@ func TestAuthRequestErrorHandling(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error on non-2xx")
 	}
-	if !errors.Is(err, ErrRequestFailed) && err.Error() == "request failed" { /* acceptable */
+	if !errors.Is(err, ErrRequestFailed) && err.Error() == "request failed" {
+		t.Logf("Error format is acceptable: %s", err.Error())
 	}
 }
 

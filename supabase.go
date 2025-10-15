@@ -326,7 +326,11 @@ func (c *Client) authRequest(endpoint string, payload TokenRequestPayload) (*Aut
 		log.Printf("authRequest: failed to perform request: %v", err)
 		return nil, errors.New("failed to perform request")
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Error closing response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bodyBytes, _ := io.ReadAll(resp.Body)
@@ -386,7 +390,11 @@ func (c *Client) doRequest(method, endpoint string, queryParams map[string]strin
 		log.Printf("Error: doRequest failed to perform request - %v", err)
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Error closing response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)

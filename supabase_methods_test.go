@@ -32,8 +32,13 @@ func setUpTestServer(t *testing.T) *httptest.Server {
 		if r.Method != http.MethodPost {
 			t.Fatalf("expected POST got %s", r.Method)
 		}
-		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{"id":"new-user"}`))
+		if r.URL.Query().Get("grant_type") == "signup" {
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id":"new-user"}`))
+			return
+		}
+		// Anonymous sign-in: no grant_type param
+		_ = json.NewEncoder(w).Encode(mockAuthResponse)
 	})
 	handler.HandleFunc(magicLinkApiPath, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`{"sent":true}`)) })
 	handler.HandleFunc(recoverApiPath, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`{"recover":true}`)) })
@@ -355,6 +360,31 @@ func TestSignUpStatusCreated(t *testing.T) {
 	}
 	if !strings.Contains(string(body), "new-user") {
 		t.Fatalf("unexpected response: %s", string(body))
+	}
+}
+
+// TestSignInAnonymously tests anonymous session creation.
+func TestSignInAnonymously(t *testing.T) {
+	ts := setUpTestServer(t)
+	defer ts.Close()
+	client := NewClient(ts.URL, "api-key", "")
+
+	auth, err := client.SignInAnonymously()
+	if err != nil {
+		t.Fatalf("SignInAnonymously error: %v", err)
+	}
+	if auth.AccessToken == "" {
+		t.Fatal("expected non-empty AccessToken")
+	}
+
+	// Error path
+	errServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "anonymous sign-ins disabled", http.StatusUnprocessableEntity)
+	}))
+	defer errServer.Close()
+	_, err = NewClient(errServer.URL, "api-key", "").SignInAnonymously()
+	if !errors.Is(err, ErrRequestFailed) {
+		t.Fatalf("expected ErrRequestFailed, got %v", err)
 	}
 }
 

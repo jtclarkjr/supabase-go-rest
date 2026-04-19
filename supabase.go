@@ -161,6 +161,42 @@ func (c *Client) SignUp(email, password string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
+// SignInAnonymously creates an anonymous user session.
+// Anonymous sign-ins must be enabled in your Supabase project settings.
+func (c *Client) SignInAnonymously() (*AuthTokenResponse, error) {
+	urlStr := fmt.Sprintf("%s%s", c.BaseUrl, signupApiPath)
+	req, err := http.NewRequest("POST", urlStr, bytes.NewBufferString("{}"))
+	if err != nil {
+		return nil, fmt.Errorf("SignInAnonymously: failed to create request: %w", err)
+	}
+
+	req.Header.Set("apikey", c.ApiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("SignInAnonymously: request failed: %w", err)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("SignInAnonymously: error closing response body: %v", err)
+		}
+	}()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		log.Printf("SignInAnonymously: request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
+		return nil, ErrRequestFailed
+	}
+
+	var authResponse AuthTokenResponse
+	if err := json.NewDecoder(resp.Body).Decode(&authResponse); err != nil {
+		return nil, fmt.Errorf("SignInAnonymously: failed to decode response: %w", err)
+	}
+	return &authResponse, nil
+}
+
 // SignIn authenticates a user and retrieves a token
 func (c *Client) SignIn(email, password string) (*AuthTokenResponse, error) {
 	payload := TokenRequestPayload{

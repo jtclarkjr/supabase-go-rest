@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -17,8 +16,9 @@ import (
 )
 
 var (
-	supabaseUrl = "https://your-project.supabase.co"
-	supabaseKey = "your-supabase-api-key"
+	supabaseUrl    = "https://your-project.supabase.co"
+	supabaseKey    = "your-supabase-api-key"
+	oauthRedirect  = "https://your-app.example.com/auth/callback"
 )
 
 type FoodCreate struct {
@@ -31,7 +31,7 @@ type FoodCreate struct {
 }
 
 type FoodUpdate struct {
-	Id         *int64    `json:"id"`
+	Id         *int64    `json:"id,omitempty"`
 	UserID     uuid.UUID `json:"user_id"`
 	Restaurant string    `json:"restaurant"`
 	Rating     int64     `json:"rating"`
@@ -40,15 +40,7 @@ type FoodUpdate struct {
 	Image      string    `json:"image"`
 }
 
-// AuthTokenResponse represents the response from the /token endpoint
-type AuthTokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int    `json:"expires_in"`
-	RefreshToken string `json:"refresh_token"`
-}
-
-// Handler for GET
+// Handler for GET /food
 // https://docs.postgrest.org/en/v12/references/api/tables_views.html#get
 func getFoodHandler(w http.ResponseWriter, r *http.Request) {
 	token := r.Header.Get("Authorization")
@@ -59,29 +51,47 @@ func getFoodHandler(w http.ResponseWriter, r *http.Request) {
 
 	client := supabase.NewClient(supabaseUrl, supabaseKey, token)
 
-	query := r.URL.Query()
-	queryParams := make(map[string]string)
-	for key := range query {
-		queryParams[key] = query.Get(key)
-	}
-	// In query can do many things native to postgrest
-	// Can sort using a column using like ?order=created_at.desc
-	// Can filter using a column name ?food_name="pizza"
+	qb := client.From("Food")
 
-	body, err := client.Get("Food", queryParams)
+	// Apply known query params from the request URL.
+	// Unrecognised params are treated as equality filters.
+	q := r.URL.Query()
+	if sel := q.Get("select"); sel != "" {
+		qb = qb.Select(sel)
+	}
+	if order := q.Get("order"); order != "" {
+		// order param expected as "<column>.asc" or "<column>.desc"
+		asc := !strings.HasSuffix(order, ".desc")
+		col := strings.TrimSuffix(strings.TrimSuffix(order, ".desc"), ".asc")
+		qb = qb.Order(col, map[string]bool{"ascending": asc})
+	}
+	if limit := q.Get("limit"); limit != "" {
+		n := 0
+		fmt.Sscanf(limit, "%d", &n)
+		if n > 0 {
+			qb = qb.Limit(n)
+		}
+	}
+	reserved := map[string]bool{"select": true, "order": true, "limit": true}
+	for key := range q {
+		if !reserved[key] {
+			qb = qb.Eq(key, q.Get(key))
+		}
+	}
+
+	body, err := qb.Execute()
 	if err != nil {
 		http.Error(w, "Error fetching data from Supabase", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_, err = w.Write(body)
-	if err != nil {
+	if _, err = w.Write(body); err != nil {
 		log.Printf("Error writing response: %v", err)
 	}
 }
 
-// Handler for POST
+// Handler for POST /food
 // https://docs.postgrest.org/en/v12/references/api/tables_views.html#create
 func createFoodHandler(w http.ResponseWriter, r *http.Request) {
 	authHeader := r.Header.Get("Authorization")
@@ -92,8 +102,6 @@ func createFoodHandler(w http.ResponseWriter, r *http.Request) {
 
 	token := strings.TrimPrefix(authHeader, "Bearer ")
 
-	// userId for RLS set for auth.id action only
-	// ExtractUserId not included in example but this pull id from token
 	userID, err := utils.ExtractUserId(token)
 	if err != nil {
 		http.Error(w, "Invalid token", http.StatusUnauthorized)
@@ -107,38 +115,24 @@ func createFoodHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-
 	food.UserID = userID
 
-	jsonData, err := json.Marshal(food)
-	if err != nil {
-		http.Error(w, "Failed to marshal JSON", http.StatusInternalServerError)
-		return
-	}
-
-	log.Printf("Request payload: %s", string(jsonData))
-
-	body, err := client.Post("Food", jsonData)
+	body, err := client.From("Food").Insert(food).Execute()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to create food data: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_, err = w.Write(body)
-	if err != nil {
+	w.WriteHeader(http.StatusCreated)
+	if _, err = w.Write(body); err != nil {
 		log.Printf("Error writing response: %v", err)
 	}
 }
 
-// Handler for PUT
-// https://docs.postgrest.org/en/v12/references/api/tables_views.html#put
-func putFoodHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+// Handler for PATCH /food/{itemId}
+// https://docs.postgrest.org/en/v12/references/api/tables_views.html#update
+func patchFoodHandler(w http.ResponseWriter, r *http.Request) {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
 		http.Error(w, "Authorization token missing", http.StatusUnauthorized)
@@ -146,9 +140,6 @@ func putFoodHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token := strings.TrimPrefix(authHeader, "Bearer ")
-
-	// userId for RLS set for auth.id action only
-	// ExtractUserId not included in example but this pull id from token
 	userID, err := utils.ExtractUserId(token)
 	if err != nil {
 		http.Error(w, "Invalid token", http.StatusUnauthorized)
@@ -168,90 +159,30 @@ func putFoodHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-
 	food.UserID = userID
-	foodId, err := strconv.ParseInt(itemId, 10, 64)
-	if err != nil {
-		http.Error(w, "Invalid item ID", http.StatusBadRequest)
-		return
-	}
-	food.Id = &foodId
 
-	jsonData, err := json.Marshal(food)
+	body, err := client.From("Food").Update(food).Eq("id", itemId).Execute()
 	if err != nil {
-		http.Error(w, "Failed to marshal JSON", http.StatusInternalServerError)
-		return
-	}
-
-	// Ensure the primary key is included in the request body
-	primaryKey := "id"
-	body, err := client.Put("Food", primaryKey, itemId, jsonData)
-	if err != nil {
-		log.Printf("Supabase PUT request error: %v", err)
+		log.Printf("Supabase PATCH request error: %v", err)
 		http.Error(w, fmt.Sprintf("Failed to update food data: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_, err = w.Write(body)
-	if err != nil {
+	if _, err = w.Write(body); err != nil {
 		log.Printf("Error writing response: %v", err)
 	}
 }
 
-// Handler for PATCH
-// https://docs.postgrest.org/en/v12/references/api/tables_views.html#update
-func patchFoodHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPatch {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
+// Handler for DELETE /food/{itemId}
+// https://docs.postgrest.org/en/v12/references/api/tables_views.html#delete
+func deleteFoodHandler(w http.ResponseWriter, r *http.Request) {
+	token := r.Header.Get("Authorization")
+	if token == "" {
 		http.Error(w, "Authorization token missing", http.StatusUnauthorized)
 		return
 	}
 
-	client := supabase.NewClient(supabaseUrl, supabaseKey, authHeader)
-
-	query := r.URL.Query()
-	queryParams := make(map[string]string)
-	for key := range query {
-		queryParams[key] = query.Get(key)
-	}
-
-	var updateData map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&updateData); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	jsonData, err := json.Marshal(updateData)
-	if err != nil {
-		http.Error(w, "Failed to marshal JSON", http.StatusInternalServerError)
-		return
-	}
-
-	body, err := client.Patch("Food", queryParams, jsonData)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to update food data: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_, err = w.Write(body)
-	if err != nil {
-		log.Printf("Error writing response: %v", err)
-	}
-}
-
-// Handler for DELETE
-// https://docs.postgrest.org/en/v12/references/api/tables_views.html#delete
-func deleteFoodHandler(w http.ResponseWriter, r *http.Request) {
-	token := r.Header.Get("Authorization")
-
-	// Extract the item ID from the URL path
 	itemId := router.URLParam(r, "itemId")
 	if itemId == "" {
 		http.Error(w, "Missing item ID", http.StatusBadRequest)
@@ -259,62 +190,154 @@ func deleteFoodHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := supabase.NewClient(supabaseUrl, supabaseKey, token)
-	primaryKey := "id"
-	body, err := client.Delete("Food", primaryKey, itemId)
-
+	body, err := client.From("Food").Delete().Eq("id", itemId).Execute()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to delete food data: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_, err = w.Write(body)
-	if err != nil {
+	if _, err = w.Write(body); err != nil {
 		log.Printf("Error writing response: %v", err)
 	}
 }
 
-// Handler for POST /auth/token (Login via Email and Password)
-func authTokenHandler(w http.ResponseWriter, r *http.Request) {
+// Handler for POST /auth/login (email + password)
+func authLoginHandler(w http.ResponseWriter, r *http.Request) {
 	var payload supabase.TokenRequestPayload
-
-	// Decode the request body
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-
-	// Ensure email and password are provided
 	if payload.Email == "" || payload.Password == "" {
 		http.Error(w, "Email and password are required", http.StatusBadRequest)
 		return
 	}
 
-	client := supabase.NewClient(supabaseUrl, supabaseKey, "") // Empty token initially
-
-	// Perform SignIn
+	client := supabase.NewClient(supabaseUrl, supabaseKey, "")
 	authResponse, err := client.SignIn(payload.Email, payload.Password)
 	if err != nil {
-		// Handle specific errors from the supabase package
 		if errors.Is(err, supabase.ErrRequestFailed) {
-			http.Error(w, fmt.Sprintf("Supabase request failed: %v", err), http.StatusBadGateway)
+			http.Error(w, "Authentication failed", http.StatusUnauthorized)
 			return
 		}
-		if errors.Is(err, supabase.ErrInvalidResponse) {
-			http.Error(w, fmt.Sprintf("Invalid response from Supabase: %v", err), http.StatusInternalServerError)
-			return
-		}
-
-		// Generic error fallback
 		http.Error(w, fmt.Sprintf("Failed to authenticate: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	// Return the token response
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(authResponse); err != nil {
 		log.Printf("Error writing response: %v", err)
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
+}
+
+// Handler for GET /auth/oauth?provider=github
+// Returns the OAuth authorization URL; the client redirects the user's browser to it.
+func oauthLoginHandler(w http.ResponseWriter, r *http.Request) {
+	providerStr := r.URL.Query().Get("provider")
+	if providerStr == "" {
+		http.Error(w, "provider query param required (e.g. github, google, discord)", http.StatusBadRequest)
+		return
+	}
+
+	client := supabase.NewClient(supabaseUrl, supabaseKey, "")
+
+	// Generate a PKCE pair. Store the Verifier in your session so it can be
+	// retrieved in the callback handler.
+	pkce, err := supabase.GeneratePKCEPair()
+	if err != nil {
+		http.Error(w, "Failed to generate PKCE pair", http.StatusInternalServerError)
+		return
+	}
+
+	// TODO: persist pkce.Verifier in a server-side session keyed by a state param.
+	// Here we log it as a placeholder.
+	log.Printf("PKCE verifier (store in session): %s", pkce.Verifier)
+
+	authURL, err := client.GetOAuthURL(
+		supabase.OAuthProvider(providerStr),
+		oauthRedirect,
+		nil, // use project default scopes
+		&pkce,
+	)
+	if err != nil {
+		http.Error(w, "Failed to build OAuth URL", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]string{"url": authURL}); err != nil {
+		log.Printf("Error writing response: %v", err)
+	}
+}
+
+// Handler for GET /auth/callback?code=...
+// Called by Supabase after the user authorises with the OAuth provider.
+func oauthCallbackHandler(w http.ResponseWriter, r *http.Request) {
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		http.Error(w, "code query param missing", http.StatusBadRequest)
+		return
+	}
+
+	// TODO: retrieve the PKCE verifier from your session store using the state param.
+	// Here we use a placeholder; replace with your real session lookup.
+	codeVerifier := r.URL.Query().Get("code_verifier") // placeholder — use session in production
+
+	client := supabase.NewClient(supabaseUrl, supabaseKey, "")
+	authResponse, err := client.ExchangeCodeForSession(code, codeVerifier)
+	if err != nil {
+		if errors.Is(err, supabase.ErrRequestFailed) {
+			http.Error(w, "OAuth code exchange failed", http.StatusUnauthorized)
+			return
+		}
+		http.Error(w, fmt.Sprintf("Failed to exchange code: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// authResponse.ProviderToken contains the raw provider token (e.g. GitHub token)
+	// if you need to call provider APIs directly.
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(authResponse); err != nil {
+		log.Printf("Error writing response: %v", err)
+	}
+}
+
+// Handler for POST /auth/id-token
+// Exchange a provider ID token (e.g. from Google Sign-In SDK) for a Supabase session.
+func idTokenHandler(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		Provider string `json:"provider"`
+		IdToken  string `json:"id_token"`
+		Nonce    string `json:"nonce,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if payload.Provider == "" || payload.IdToken == "" {
+		http.Error(w, "provider and id_token are required", http.StatusBadRequest)
+		return
+	}
+
+	client := supabase.NewClient(supabaseUrl, supabaseKey, "")
+	authResponse, err := client.SignInWithIdToken(
+		supabase.OAuthProvider(payload.Provider),
+		payload.IdToken,
+		payload.Nonce,
+	)
+	if err != nil {
+		if errors.Is(err, supabase.ErrRequestFailed) {
+			http.Error(w, "ID token authentication failed", http.StatusUnauthorized)
+			return
+		}
+		http.Error(w, fmt.Sprintf("Failed to authenticate: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(authResponse); err != nil {
+		log.Printf("Error writing response: %v", err)
 	}
 }
 
@@ -323,15 +346,25 @@ func main() {
 	r.Use(middleware.Logger)
 
 	r.Route("/v1", func(r *router.Router) {
-		r.Post("/auth/token", authTokenHandler)
+		// Email / password auth
+		r.Post("/auth/login", authLoginHandler)
 
+		// OAuth — redirect-based flow (PKCE)
+		r.Get("/auth/oauth", oauthLoginHandler)    // step 1: get redirect URL
+		r.Get("/auth/callback", oauthCallbackHandler) // step 2: exchange code for session
+
+		// OAuth — ID token flow (Google Sign-In SDK, Apple, etc.)
+		r.Post("/auth/id-token", idTokenHandler)
+
+		// Food CRUD
 		r.Get("/food", getFoodHandler)
 		r.Post("/food", createFoodHandler)
-		r.Put("/food/{itemId}", putFoodHandler)
-		r.Patch("/food", patchFoodHandler)
+		r.Patch("/food/{itemId}", patchFoodHandler)
 		r.Delete("/food/{itemId}", deleteFoodHandler)
 	})
 
 	fmt.Println("Server is running on port 8080")
-	http.ListenAndServe(":8080", r)
+	if err := http.ListenAndServe(":8080", r); err != nil {
+		log.Fatalf("server error: %v", err)
+	}
 }

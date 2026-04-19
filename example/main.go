@@ -231,6 +231,26 @@ func authLoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Handler for POST /auth/anonymous
+// Creates an anonymous session. Enable "Allow anonymous sign-ins" in Supabase Auth settings.
+func anonLoginHandler(w http.ResponseWriter, r *http.Request) {
+	client := supabase.NewClient(supabaseUrl, supabaseKey, "")
+	authResponse, err := client.SignInAnonymously()
+	if err != nil {
+		if errors.Is(err, supabase.ErrRequestFailed) {
+			http.Error(w, "Anonymous sign-ins are not enabled", http.StatusForbidden)
+			return
+		}
+		http.Error(w, fmt.Sprintf("Failed to create anonymous session: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(authResponse); err != nil {
+		log.Printf("Error writing response: %v", err)
+	}
+}
+
 // Handler for GET /auth/oauth?provider=github
 // Returns the OAuth authorization URL; the client redirects the user's browser to it.
 func oauthLoginHandler(w http.ResponseWriter, r *http.Request) {
@@ -348,6 +368,9 @@ func main() {
 	r.Route("/v1", func(r *router.Router) {
 		// Email / password auth
 		r.Post("/auth/login", authLoginHandler)
+
+		// Anonymous auth
+		r.Post("/auth/anonymous", anonLoginHandler)
 
 		// OAuth — redirect-based flow (PKCE)
 		r.Get("/auth/oauth", oauthLoginHandler)    // step 1: get redirect URL

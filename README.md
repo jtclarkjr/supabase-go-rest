@@ -1,6 +1,6 @@
 # Supabase Go
 
-A lightweight, fluent Go client for Supabase REST API with method chaining similar to supabase-js.
+Supabase Go Rest is a lightweight, flexible Go client designed to simplify interactions with Supabase's REST API, providing a seamless middleware solution for handling authenticated requests and Row Level Security (RLS) integrations.
 
 ## Features
 

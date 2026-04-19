@@ -1,9 +1,8 @@
 # Supabase Go
-## 🚀 Overview
 
-Supabase Go Rest is a lightweight, flexible Go client designed to simplify interactions with Supabase's REST API, providing a seamless middleware solution for handling authenticated requests and Row Level Security (RLS) integrations.
+A lightweight, fluent Go client for Supabase REST API with method chaining similar to supabase-js.
 
-## 📦 Features
+## Features
 
 ### Authentication
 - User Sign Up
@@ -13,26 +12,28 @@ Supabase Go Rest is a lightweight, flexible Go client designed to simplify inter
 - Password Recovery
 - User Management
 
-### REST API Methods
-- GET
-- POST
-- PUT
-- PATCH
-- DELETE
+### Fluent Query Builder
+- Method chaining API similar to supabase-js
+- SELECT queries with column specification
+- INSERT with automatic response handling
+- UPDATE with filters
+- DELETE with filters
+- ORDER BY support
+- LIMIT and SINGLE row queries
+- Equality filters
 
 ### Advanced Capabilities
 - Automatic Bearer token management
 - Row Level Security (RLS) support
-- Flexible query parameter handling
 - Error handling for Supabase API interactions
 
-## 🛠 Installation
+## Installation
 
 ```bash
 go get github.com/jtclarkjr/supabase-go-rest
 ```
 
-## 🔧 Quick Start
+## Quick Start
 
 ### Client Initialization
 
@@ -46,7 +47,7 @@ token := "optional-user-access-token"
 client := supabase.NewClient(supabaseUrl, supabaseKey, token)
 ```
 
-## 🔐 Authentication Methods
+## Authentication Methods
 
 ### Sign Up
 ```go
@@ -73,70 +74,132 @@ body, err := client.SendMagicLink("user@example.com")
 body, err := client.SendPasswordRecovery("user@example.com")
 ```
 
-## 🌐 REST API Interactions
+## Fluent Query API
 
-### GET Request
+### SELECT Query
+
 ```go
-// Simple GET request with query parameters
-queryParams := map[string]string{
-    "name": "eq.John",
-    "age": "gt.25"
+// Get all rooms ordered by created_at
+data, err := client.
+    From("rooms").
+    Select("*").
+    Order("created_at", map[string]bool{"ascending": true}).
+    Execute()
+```
+
+### SELECT with Filters
+
+```go
+// Get specific columns with filters
+data, err := client.
+    From("users").
+    Select("id, name, email").
+    Eq("age", "25").
+    Limit(10).
+    Execute()
+```
+
+### INSERT
+
+```go
+// Insert a new room and get it back
+roomData := map[string]interface{}{
+    "name": "My Room",
+    "description": "A cool room",
 }
-body, err := client.Get("Users", queryParams)
+
+newRoom, err := client.
+    From("rooms").
+    Insert(roomData).
+    Select().
+    Single().
+    Execute()
 ```
 
-### POST Request
+### UPDATE
+
 ```go
-data := map[string]interface{}{
-    "name": "John Doe",
-    "email": "john@example.com"
+// Update a room
+updateData := map[string]interface{}{
+    "name": "Updated Room Name",
 }
-jsonData, _ := json.Marshal(data)
-body, err := client.Post("Users", jsonData)
+
+updated, err := client.
+    From("rooms").
+    Update(updateData).
+    Eq("id", "123").
+    Select().
+    Execute()
 ```
 
-### PUT Request
+### DELETE
+
 ```go
-data := map[string]interface{}{
-    "name": "Updated Name"
-}
-jsonData, _ := json.Marshal(data)
-body, err := client.Put("Users", "id", "123", jsonData)
+// Delete a room
+deleted, err := client.
+    From("rooms").
+    Delete().
+    Eq("id", "123").
+    Execute()
 ```
 
-### PATCH Request
-```go
-data := map[string]interface{}{
-    "last_login": "2024-03-28"
-}
-jsonData, _ := json.Marshal(data)
-queryParams := map[string]string{"email": "john@example.com"}
-body, err := client.Patch("Users", queryParams, jsonData)
-```
+## Query Builder Methods
 
-### DELETE Request
-```go
-body, err := client.Delete("Users", "id", "123")
-```
+### From(table string)
+Initiates a query on a specific table.
 
-## 🔍 Query Parameter Operators
+### Select(columns ...string)
+Specifies columns to return. Use `"*"` or no arguments for all columns.
 
-Supabase Go Rest supports PostgREST query operators for advanced
-[filtering](https://docs.postgrest.org/en/v12/references/api/tables_views.html#operators)
-## 🚨 Error Handling
+### Insert(data interface{})
+Inserts data into the table. Automatically marshals to JSON.
+
+### Update(data interface{})
+Updates data in the table. Automatically marshals to JSON.
+
+### Delete()
+Marks the query as a delete operation.
+
+### Eq(column, value string)
+Adds an equality filter (`column = value`).
+
+### Order(column string, opts map[string]bool)
+Orders results by column. Options:
+- `map[string]bool{"ascending": true}` - ascending order
+- `map[string]bool{"ascending": false}` - descending order
+
+### Limit(count int)
+Limits the number of results.
+
+### Single()
+Expects a single row result (adds `limit=1`).
+
+### Execute()
+Executes the query and returns the response.
+
+## Error Handling
 
 The package provides custom error types:
-
 - `ErrInvalidResponse`: Indicates an invalid server response
 - `ErrRequestFailed`: Indicates a request failed to complete
 
-## 📡 Example Use Case
-[example.go](https://github.com/jtclarkjr/supabase-go-rest/blob/main/example/example.go)
+```go
+data, err := client.From("users").Select("*").Execute()
+if err != nil {
+    if errors.Is(err, supabase.ErrRequestFailed) {
+        log.Printf("Request failed: %v", err)
+    }
+    return err
+}
+```
+
+## Complete Example
 
 ```go
 package main
 
 import (
+    "encoding/json"
     "fmt"
     "log"
 
@@ -144,81 +207,99 @@ import (
 )
 
 func main() {
-    client := supabase.NewClient("https://project.supabase.co", "api-key", "user-token")
+    client := supabase.NewClient(
+        "https://project.supabase.co",
+        "api-key",
+        "user-token",
+    )
     
-    // Fetch users over 25
-    body, err := client.Get("Users", map[string]string{
-        "age": "gt.25"
-    })
+    // Get all users ordered by created_at
+    usersData, err := client.
+        From("users").
+        Select("*").
+        Order("created_at", map[string]bool{"ascending": true}).
+        Execute()
     
     if err != nil {
         log.Fatalf("Failed to fetch users: %v", err)
     }
     
-    fmt.Println(string(body))
+    var users []map[string]interface{}
+    json.Unmarshal(usersData, &users)
+    
+    fmt.Printf("Found %d users\n", len(users))
+    
+    // Create a new user
+    newUser := map[string]interface{}{
+        "name":  "John Doe",
+        "email": "john@example.com",
+    }
+    
+    result, err := client.
+        From("users").
+        Insert(newUser).
+        Select().
+        Single().
+        Execute()
+    
+    if err != nil {
+        log.Fatalf("Failed to create user: %v", err)
+    }
+    
+    fmt.Println("Created user:", string(result))
 }
 ```
 
-## 🌐 API Interaction Examples
+## API Interaction Examples
 
 ### Obtaining Authentication Token
-
-To get an authentication token, use the following cURL command:
 
 ```bash
 curl -X POST http://localhost:8080/v1/auth/token \
 -H "Content-Type: application/json" \
 -d '{
- "email": "name@domain.com",
- "password": "somepassword"
+  "email": "name@domain.com",
+  "password": "somepassword"
 }'
 ```
 
-This will return a JSON response with an access token.
-
 ### Making Authenticated Requests
-
-Once you have the token, use it in the Authorization header for subsequent requests:
 
 ```bash
 curl -X GET "https://localhost:8080/v1/food" \
  -H "Authorization: Bearer TOKEN_HERE"
 ```
 
-### Practical Example Workflow
+### Practical Workflow
 
-1. Get Authentication Token:
 ```bash
-# Request token
+# Get token
 TOKEN=$(curl -s -X POST http://localhost:8080/v1/auth/token \
 -H "Content-Type: application/json" \
 -d '{"email":"name@domain.com","password":"somepassword"}' | \
 jq -r '.access_token')
 
-# Use token in subsequent request
+# Use token
 curl -X GET "https://localhost:8080/v1/food" \
  -H "Authorization: Bearer $TOKEN"
 ```
 
-## 🔑 Token Management Notes
+## Token Management
 
 - Always include the `Authorization` header with a valid Bearer token
 - Tokens are required for endpoints protected by Row Level Security (RLS)
 - Tokens typically expire and need to be refreshed
-- The Supabase client automatically handles token formatting
+- The client automatically handles Bearer token formatting
 
-## 📝 Important Notes
+## PostgREST Query Operators
 
-- Always provide an access token for authenticated requests
-- Automatic Bearer token formatting
-- Support for both manual and Supabase-generated tokens
+For advanced filtering, see [PostgREST operators documentation](https://docs.postgrest.org/en/v12/references/api/tables_views.html#operators).
 
-## 🔗 Related Projects
+## Related Projects
 
 For more comprehensive Supabase functionality:
 - [supabase-community/supabase-go](https://github.com/supabase-community/supabase-go)
 
-## 📄 License
+## License
 
 MIT License
-

@@ -13,10 +13,10 @@ import (
 )
 
 /*
- **********************
- *   TYPE DEFINITON   *
- **********************
- */
+| **********************
+| *   TYPE DEFINITON   *
+| **********************
+| */
 
 // Client represents the Supabase client
 type Client struct {
@@ -25,12 +25,23 @@ type Client struct {
 	Token   string
 }
 
+// QueryBuilder represents a fluent query builder
+type QueryBuilder struct {
+	client      *Client
+	table       string
+	queryParams map[string]string
+	method      string
+	body        []byte
+}
+
 // AuthTokenResponse represents the response from the /token endpoint
 type AuthTokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int    `json:"expires_in"`
-	RefreshToken string `json:"refresh_token"`
+	AccessToken          string `json:"access_token"`
+	TokenType            string `json:"token_type"`
+	ExpiresIn            int    `json:"expires_in"`
+	RefreshToken         string `json:"refresh_token"`
+	ProviderToken        string `json:"provider_token,omitempty"`
+	ProviderRefreshToken string `json:"provider_refresh_token,omitempty"`
 }
 
 // TokenRequestPayload represents the payload for /token requests
@@ -54,10 +65,10 @@ type VerifyOTPPayload struct {
 }
 
 /*
- **************************
- *   VARIABLE DEFINITON   *
- **************************
- */
+| **************************
+| *   VARIABLE DEFINITON   *
+| **************************
+| */
 
 // Defined REST API paths from Supabase
 const (
@@ -72,6 +83,7 @@ const (
 	logoutApiPath    = authApiPath + "/logout"
 	inviteApiPath    = authApiPath + "/invite"
 	resetApiPath     = authApiPath + "/reset"
+	authorizeApiPath = authApiPath + "/authorize"
 )
 
 // Custom error types
@@ -81,10 +93,10 @@ var (
 )
 
 /*
- *******************
- *   INITIALIZER   *
- *******************
- */
+| *******************
+| *   INITIALIZER   *
+| *******************
+| */
 
 // NewClient creates a new Supabase client
 func NewClient(baseUrl, apiKey, token string) *Client {
@@ -95,11 +107,21 @@ func NewClient(baseUrl, apiKey, token string) *Client {
 	}
 }
 
+// From initiates a query on a specific table
+func (c *Client) From(table string) *QueryBuilder {
+	return &QueryBuilder{
+		client:      c,
+		table:       table,
+		queryParams: make(map[string]string),
+		method:      "GET",
+	}
+}
+
 /*
- ********************
- *   AUTH METHODS   *
- ********************
- */
+| ********************
+| *   AUTH METHODS   *
+| ********************
+| */
 
 // SignUp creates a new user
 func (c *Client) SignUp(email, password string) ([]byte, error) {
@@ -109,14 +131,34 @@ func (c *Client) SignUp(email, password string) ([]byte, error) {
 		return nil, err
 	}
 
-	path := fmt.Sprintf("%s?grant_type=signup", signupApiPath)
+	urlStr := fmt.Sprintf("%s%s?grant_type=signup", c.BaseUrl, signupApiPath)
+	req, err := http.NewRequest("POST", urlStr, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, err
+	}
 
-	response, err := c.doRequest("POST", path, nil, bytes.NewBuffer(jsonData))
+	req.Header.Set("apikey", c.ApiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("SignUp error: %v", err)
 		return nil, err
 	}
-	return response, nil
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("SignUp: error closing response body: %v", err)
+		}
+	}()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("SignUp error: status %d: %s", resp.StatusCode, string(body))
+		return nil, ErrRequestFailed
+	}
+
+	return io.ReadAll(resp.Body)
 }
 
 // SignIn authenticates a user and retrieves a token
@@ -159,12 +201,35 @@ func (c *Client) SendMagicLink(email string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	response, err := c.doRequest("POST", magicLinkApiPath, nil, bytes.NewBuffer(jsonData))
+
+	urlStr := fmt.Sprintf("%s%s", c.BaseUrl, magicLinkApiPath)
+	req, err := http.NewRequest("POST", urlStr, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("apikey", c.ApiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("SendMagicLink error: %v", err)
 		return nil, err
 	}
-	return response, nil
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("SendMagicLink: error closing response body: %v", err)
+		}
+	}()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("SendMagicLink error: status %d: %s", resp.StatusCode, string(body))
+		return nil, ErrRequestFailed
+	}
+
+	return io.ReadAll(resp.Body)
 }
 
 // SendPasswordRecovery sends a password recovery email
@@ -174,12 +239,35 @@ func (c *Client) SendPasswordRecovery(email string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	response, err := c.doRequest("POST", recoverApiPath, nil, bytes.NewBuffer(jsonData))
+
+	urlStr := fmt.Sprintf("%s%s", c.BaseUrl, recoverApiPath)
+	req, err := http.NewRequest("POST", urlStr, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("apikey", c.ApiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("SendPasswordRecovery error: %v", err)
 		return nil, err
 	}
-	return response, nil
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("SendPasswordRecovery: error closing response body: %v", err)
+		}
+	}()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("SendPasswordRecovery error: status %d: %s", resp.StatusCode, string(body))
+		return nil, ErrRequestFailed
+	}
+
+	return io.ReadAll(resp.Body)
 }
 
 // VerifyOTP verifies a one-time password (OTP)
@@ -193,12 +281,71 @@ func (c *Client) VerifyOTP(email, token, otpType string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return c.doRequest("POST", verifyApiPath, nil, bytes.NewBuffer(jsonData))
+
+	urlStr := fmt.Sprintf("%s%s", c.BaseUrl, verifyApiPath)
+	req, err := http.NewRequest("POST", urlStr, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("apikey", c.ApiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("VerifyOTP: error closing response body: %v", err)
+		}
+	}()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("VerifyOTP error: status %d: %s", resp.StatusCode, string(body))
+		return nil, ErrRequestFailed
+	}
+
+	return io.ReadAll(resp.Body)
 }
 
 // GetUser retrieves the authenticated user's information
 func (c *Client) GetUser() ([]byte, error) {
-	return c.doRequest("GET", userApiPath, nil, nil)
+	urlStr := fmt.Sprintf("%s%s", c.BaseUrl, userApiPath)
+	req, err := http.NewRequest("GET", urlStr, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("apikey", c.ApiKey)
+	if c.Token != "" {
+		if !strings.HasPrefix(c.Token, "Bearer ") {
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+		} else {
+			req.Header.Set("Authorization", c.Token)
+		}
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("GetUser: error closing response body: %v", err)
+		}
+	}()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("GetUser error: status %d: %s", resp.StatusCode, string(body))
+		return nil, ErrRequestFailed
+	}
+
+	return io.ReadAll(resp.Body)
 }
 
 // UpdateUser updates the authenticated user's information
@@ -207,12 +354,78 @@ func (c *Client) UpdateUser(payload map[string]string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return c.doRequest("PUT", userApiPath, nil, bytes.NewBuffer(jsonData))
+
+	urlStr := fmt.Sprintf("%s%s", c.BaseUrl, userApiPath)
+	req, err := http.NewRequest("PUT", urlStr, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("apikey", c.ApiKey)
+	req.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		if !strings.HasPrefix(c.Token, "Bearer ") {
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+		} else {
+			req.Header.Set("Authorization", c.Token)
+		}
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("UpdateUser: error closing response body: %v", err)
+		}
+	}()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("UpdateUser error: status %d: %s", resp.StatusCode, string(body))
+		return nil, ErrRequestFailed
+	}
+
+	return io.ReadAll(resp.Body)
 }
 
 // SignOut logs out the user
 func (c *Client) SignOut() ([]byte, error) {
-	return c.doRequest("POST", logoutApiPath, nil, nil)
+	urlStr := fmt.Sprintf("%s%s", c.BaseUrl, logoutApiPath)
+	req, err := http.NewRequest("POST", urlStr, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("apikey", c.ApiKey)
+	if c.Token != "" {
+		if !strings.HasPrefix(c.Token, "Bearer ") {
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+		} else {
+			req.Header.Set("Authorization", c.Token)
+		}
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("SignOut: error closing response body: %v", err)
+		}
+	}()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("SignOut error: status %d: %s", resp.StatusCode, string(body))
+		return nil, ErrRequestFailed
+	}
+
+	return io.ReadAll(resp.Body)
 }
 
 // InviteUser sends an invite email to a new user (admin only)
@@ -222,7 +435,41 @@ func (c *Client) InviteUser(email string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return c.doRequest("POST", inviteApiPath, nil, bytes.NewBuffer(jsonData))
+
+	urlStr := fmt.Sprintf("%s%s", c.BaseUrl, inviteApiPath)
+	req, err := http.NewRequest("POST", urlStr, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("apikey", c.ApiKey)
+	req.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		if !strings.HasPrefix(c.Token, "Bearer ") {
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+		} else {
+			req.Header.Set("Authorization", c.Token)
+		}
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("InviteUser: error closing response body: %v", err)
+		}
+	}()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("InviteUser error: status %d: %s", resp.StatusCode, string(body))
+		return nil, ErrRequestFailed
+	}
+
+	return io.ReadAll(resp.Body)
 }
 
 // ResetPassword resets the user's password using a token
@@ -232,75 +479,46 @@ func (c *Client) ResetPassword(token, newPassword string) ([]byte, error) {
 		"password": newPassword,
 	}
 
-	path := fmt.Sprintf("%s?grant_type=reset_password", resetApiPath)
-
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
-	response, err := c.doRequest("POST", path, nil, bytes.NewBuffer(jsonData))
+
+	urlStr := fmt.Sprintf("%s%s?grant_type=reset_password", c.BaseUrl, resetApiPath)
+	req, err := http.NewRequest("POST", urlStr, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("apikey", c.ApiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("ResetPassword error: %v", err)
 		return nil, err
 	}
-	return response, nil
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("ResetPassword: error closing response body: %v", err)
+		}
+	}()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("ResetPassword error: status %d: %s", resp.StatusCode, string(body))
+		return nil, ErrRequestFailed
+	}
+
+	return io.ReadAll(resp.Body)
 }
 
 /*
- ********************
- *   HTTP METHODS   *
- ********************
- */
-
-// Get performs a GET request to the Supabase REST API. Requires table name, and query parameters.
-func (c *Client) Get(endpoint string, queryParams ...map[string]string) ([]byte, error) {
-	params := map[string]string{}
-	if len(queryParams) > 0 {
-		params = queryParams[0]
-	}
-	return c.doRequest("GET", endpoint, params, nil)
-}
-
-// Post performs a POST request to the Supabase REST API. Requires table name, and request data.
-func (c *Client) Post(endpoint string, data []byte) ([]byte, error) {
-	return c.doRequest("POST", endpoint, nil, bytes.NewBuffer(data))
-}
-
-// Put performs a PUT request to the Supabase REST API. Requires table name, primary key, primary key value, and request data.
-func (c *Client) Put(endpoint string, primaryKeyName string, primaryKeyValue string, data []byte) ([]byte, error) {
-	query := map[string]string{
-		primaryKeyName: primaryKeyValue,
-	}
-	return c.doRequest("PUT", endpoint, query, bytes.NewBuffer(data))
-}
-
-// Patch performs a PATCH request to the Supabase REST API. Requires table name, query parameters, and request data.
-func (c *Client) Patch(endpoint string, queryParams map[string]string, data []byte) ([]byte, error) {
-	return c.doRequest("PATCH", endpoint, queryParams, bytes.NewBuffer(data))
-}
-
-// Delete performs a DELETE request to the Supabase REST API. Requires table name, primary key, and primary key value.
-func (c *Client) Delete(endpoint string, primaryKeyName string, primaryKeyValue string) ([]byte, error) {
-	query := map[string]string{
-		primaryKeyName: primaryKeyValue,
-	}
-	return c.doRequest("DELETE", endpoint, query, nil)
-}
-
-/*
- ********************
- *   REQ METHODS   *
- ********************
- */
-
-// formatQueryParams formats query parameters for Supabase compatibility
-func formatQueryParams(params map[string]string) map[string]string {
-	formattedParams := make(map[string]string)
-	for key, value := range params {
-		formattedParams[key] = fmt.Sprintf("eq.%s", url.QueryEscape(value))
-	}
-	return formattedParams
-}
+| ********************
+| *   REQ METHODS   *
+| ********************
+| */
 
 // authRequest handles authentication-related requests
 func (c *Client) authRequest(endpoint string, payload TokenRequestPayload) (*AuthTokenResponse, error) {
@@ -347,47 +565,144 @@ func (c *Client) authRequest(endpoint string, payload TokenRequestPayload) (*Aut
 	return &authResponse, nil
 }
 
-// doRequest performs the actual HTTP request. Requires API key, and Token for headers
-func (c *Client) doRequest(method, endpoint string, queryParams map[string]string, body io.Reader) ([]byte, error) {
-	// Normalize endpoint to avoid double slashes when endpoint begins with '/'
-	cleanEndpoint := strings.TrimPrefix(endpoint, "/")
-	urlStr := fmt.Sprintf("%s%s/%s", c.BaseUrl, restApiPath, cleanEndpoint)
-	if len(queryParams) > 0 {
+/*
+| *************************
+| *   QUERY BUILDER API   *
+| *************************
+| */
+
+// Select specifies columns to return (use "*" for all)
+func (qb *QueryBuilder) Select(columns ...string) *QueryBuilder {
+	if len(columns) > 0 && columns[0] != "" {
+		qb.queryParams["select"] = columns[0]
+	} else {
+		qb.queryParams["select"] = "*"
+	}
+	return qb
+}
+
+// Insert adds data for insertion
+func (qb *QueryBuilder) Insert(data interface{}) *QueryBuilder {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		log.Printf("Insert: failed to marshal data: %v", err)
+		return qb
+	}
+	qb.method = "POST"
+	qb.body = jsonData
+	return qb
+}
+
+// Update adds data for update
+func (qb *QueryBuilder) Update(data interface{}) *QueryBuilder {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		log.Printf("Update: failed to marshal data: %v", err)
+		return qb
+	}
+	qb.method = "PATCH"
+	qb.body = jsonData
+	return qb
+}
+
+// Delete marks the query as a delete operation
+func (qb *QueryBuilder) Delete() *QueryBuilder {
+	qb.method = "DELETE"
+	return qb
+}
+
+// Eq adds an equality filter
+func (qb *QueryBuilder) Eq(column, value string) *QueryBuilder {
+	qb.queryParams[column] = fmt.Sprintf("eq.%s", url.QueryEscape(value))
+	return qb
+}
+
+// Order adds ordering to the query
+func (qb *QueryBuilder) Order(column string, opts map[string]bool) *QueryBuilder {
+	orderValue := column
+	if opts != nil {
+		if ascending, exists := opts["ascending"]; exists && !ascending {
+			orderValue += ".desc"
+		} else {
+			orderValue += ".asc"
+		}
+	} else {
+		orderValue += ".asc"
+	}
+	qb.queryParams["order"] = orderValue
+	return qb
+}
+
+// Limit adds a limit to the query
+func (qb *QueryBuilder) Limit(count int) *QueryBuilder {
+	qb.queryParams["limit"] = fmt.Sprintf("%d", count)
+	return qb
+}
+
+// Single expects a single row result
+func (qb *QueryBuilder) Single() *QueryBuilder {
+	qb.queryParams["limit"] = "1"
+	return qb
+}
+
+// Execute runs the query and returns the result
+func (qb *QueryBuilder) Execute() ([]byte, error) {
+	var body io.Reader
+	if qb.body != nil {
+		body = bytes.NewBuffer(qb.body)
+	}
+
+	// Build URL
+	cleanTable := strings.TrimPrefix(qb.table, "/")
+	urlStr := fmt.Sprintf("%s%s/%s", qb.client.BaseUrl, restApiPath, cleanTable)
+
+	if len(qb.queryParams) > 0 {
 		urlObj, err := url.Parse(urlStr)
 		if err != nil {
-			log.Printf("Error: doRequest failed to parse URL - %v", err)
-			return nil, nil
+			log.Printf("Execute: failed to parse URL - %v", err)
+			return nil, err
 		}
 		q := urlObj.Query()
-		for key, value := range formatQueryParams(queryParams) {
+		for key, value := range qb.queryParams {
+			// Don't double-format if already formatted
+			if key != "select" && key != "order" && key != "limit" && !strings.HasPrefix(value, "eq.") {
+				value = fmt.Sprintf("eq.%s", url.QueryEscape(value))
+			}
 			q.Add(key, value)
 		}
 		urlObj.RawQuery = q.Encode()
 		urlStr = urlObj.String()
 	}
 
-	req, err := http.NewRequest(method, urlStr, body)
+	req, err := http.NewRequest(qb.method, urlStr, body)
 	if err != nil {
-		log.Printf("Error: doRequest failed to create request - %v", err)
+		log.Printf("Execute: failed to create request - %v", err)
 		return nil, err
 	}
 
-	req.Header.Set("apikey", c.ApiKey)
+	req.Header.Set("apikey", qb.client.ApiKey)
 
-	if c.Token != "" {
-		if !strings.HasPrefix(c.Token, "Bearer ") {
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	if qb.client.Token != "" {
+		if !strings.HasPrefix(qb.client.Token, "Bearer ") {
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", qb.client.Token))
 		} else {
-			req.Header.Set("Authorization", c.Token)
+			req.Header.Set("Authorization", qb.client.Token)
 		}
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
+	// Add Prefer header for insert/update to return data
+	if qb.method == "POST" || qb.method == "PATCH" {
+		if _, hasSelect := qb.queryParams["select"]; hasSelect || qb.method == "POST" {
+			req.Header.Set("Prefer", "return=representation")
+		}
+	}
+
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Printf("Error: doRequest failed to perform request - %v", err)
+		log.Printf("Execute: failed to perform request - %v", err)
 		return nil, err
 	}
 	defer func() {
@@ -398,12 +713,14 @@ func (c *Client) doRequest(method, endpoint string, queryParams map[string]strin
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
-		log.Printf("Error: doRequest %v - %s", ErrRequestFailed, string(body))
+		log.Printf("Execute: request failed with status %d: %s", resp.StatusCode, string(body))
+		return nil, ErrRequestFailed
 	}
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("Error: doRequest failed to read response body - %v", err)
+		log.Printf("Execute: failed to read response body - %v", err)
+		return nil, err
 	}
 
 	return responseBody, nil

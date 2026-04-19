@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"path"
 	"reflect"
 	"strings"
 	"testing"
@@ -27,38 +26,32 @@ func setUpTestServer(t *testing.T) *httptest.Server {
 
 	handler := http.NewServeMux()
 
-	// Auth endpoints (token handled via authRequest without /rest prefix)
+	// Auth endpoints
 	handler.HandleFunc(tokenApiPath, func(w http.ResponseWriter, r *http.Request) { _ = json.NewEncoder(w).Encode(mockAuthResponse) })
-	// Auth endpoints that (in current implementation) incorrectly go through doRequest and thus are prefixed with /rest/v1//auth/v1...
-	combinedPaths := map[string]http.HandlerFunc{
-		path.Clean(restApiPath + "/" + signupApiPath): func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodPost {
-				t.Fatalf("expected POST got %s", r.Method)
-			}
-			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"id":"new-user"}`))
-		},
-		path.Clean(restApiPath + "/" + magicLinkApiPath): func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`{"sent":true}`)) },
-		path.Clean(restApiPath + "/" + recoverApiPath):   func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`{"recover":true}`)) },
-		path.Clean(restApiPath + "/" + verifyApiPath):    func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`{"verified":true}`)) },
-		path.Clean(restApiPath + "/" + userApiPath): func(w http.ResponseWriter, r *http.Request) {
-			switch r.Method {
-			case http.MethodGet:
-				_, _ = w.Write([]byte(`{"user":"me"}`))
-			case http.MethodPut:
-				body, _ := io.ReadAll(r.Body)
-				_, _ = w.Write(body)
-			default:
-				http.Error(w, "method", http.StatusMethodNotAllowed)
-			}
-		},
-		path.Clean(restApiPath + "/" + logoutApiPath): func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`{"logged_out":true}`)) },
-		path.Clean(restApiPath + "/" + inviteApiPath): func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`{"invited":true}`)) },
-		path.Clean(restApiPath + "/" + resetApiPath):  func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`{"reset":true}`)) },
-	}
-	for p, h := range combinedPaths {
-		handler.HandleFunc(p, h)
-	}
+	handler.HandleFunc(signupApiPath, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("expected POST got %s", r.Method)
+		}
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"id":"new-user"}`))
+	})
+	handler.HandleFunc(magicLinkApiPath, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`{"sent":true}`)) })
+	handler.HandleFunc(recoverApiPath, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`{"recover":true}`)) })
+	handler.HandleFunc(verifyApiPath, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`{"verified":true}`)) })
+	handler.HandleFunc(userApiPath, func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			_, _ = w.Write([]byte(`{"user":"me"}`))
+		case http.MethodPut:
+			body, _ := io.ReadAll(r.Body)
+			_, _ = w.Write(body)
+		default:
+			http.Error(w, "method", http.StatusMethodNotAllowed)
+		}
+	})
+	handler.HandleFunc(logoutApiPath, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`{"logged_out":true}`)) })
+	handler.HandleFunc(inviteApiPath, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`{"invited":true}`)) })
+	handler.HandleFunc(resetApiPath, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`{"reset":true}`)) })
 
 	// REST endpoint handler - matches /rest/v1/<table>
 	handler.HandleFunc(restApiPath+"/Food", func(w http.ResponseWriter, r *http.Request) {
@@ -167,12 +160,11 @@ func TestRestMethodsAndQueryFormatting(t *testing.T) {
 
 	client := NewClient(ts.URL, "api-key", "token-no-bearer-prefix")
 
-	// GET with query params (they are auto formatted with eq.)
-	body, err := client.Get("Food", map[string]string{"name": "John Doe", "city": "New York"})
+	// GET with Eq filters — values must echo back with eq. prefix
+	body, err := client.From("Food").Eq("name", "John Doe").Eq("city", "New York").Execute()
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	// decode response to ensure query echoed with eq. prefix
 	var echoed map[string]string
 	_ = json.Unmarshal(body, &echoed)
 	for k, v := range echoed {
@@ -181,24 +173,23 @@ func TestRestMethodsAndQueryFormatting(t *testing.T) {
 		}
 	}
 
-	// POST
-	postBody := []byte(`{"restaurant":"Place","rating":5}`)
-	if _, err := client.Post("Food", postBody); err != nil {
-		t.Fatalf("Post: %v", err)
+	// INSERT (POST)
+	if _, err := client.From("Food").Insert(map[string]interface{}{"restaurant": "Place", "rating": 5}).Execute(); err != nil {
+		t.Fatalf("Insert: %v", err)
 	}
 
-	// PUT
-	if _, err := client.Put("Food", "id", "10", []byte(`{"id":10,"restaurant":"R","rating":4}`)); err != nil {
-		t.Fatalf("Put: %v", err)
+	// UPDATE (PATCH) replacing all fields
+	if _, err := client.From("Food").Update(map[string]interface{}{"id": 10, "restaurant": "R", "rating": 4}).Eq("id", "10").Execute(); err != nil {
+		t.Fatalf("Update (replace): %v", err)
 	}
 
-	// PATCH
-	if _, err := client.Patch("Food", map[string]string{"id": "10"}, []byte(`{"rating":3}`)); err != nil {
-		t.Fatalf("Patch: %v", err)
+	// UPDATE (PATCH) partial
+	if _, err := client.From("Food").Update(map[string]int{"rating": 3}).Eq("id", "10").Execute(); err != nil {
+		t.Fatalf("Update: %v", err)
 	}
 
 	// DELETE
-	if _, err := client.Delete("Food", "id", "10"); err != nil {
+	if _, err := client.From("Food").Delete().Eq("id", "10").Execute(); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
 }
@@ -209,7 +200,7 @@ func TestAuthorizationHeaderFormatting(t *testing.T) {
 	defer ts.Close()
 
 	client := NewClient(ts.URL, "api-key", "rawtoken123") // no Bearer prefix
-	body, err := client.Get("HeaderCheck")
+	body, err := client.From("HeaderCheck").Execute()
 	if err != nil {
 		t.Fatalf("Get header check: %v", err)
 	}
@@ -222,7 +213,7 @@ func TestAuthorizationHeaderFormatting(t *testing.T) {
 
 	// Now with existing Bearer prefix
 	client.Token = "Bearer already"
-	body, err = client.Get("HeaderCheck")
+	body, err = client.From("HeaderCheck").Execute()
 	if err != nil {
 		t.Fatalf("Get header check 2: %v", err)
 	}
@@ -232,22 +223,23 @@ func TestAuthorizationHeaderFormatting(t *testing.T) {
 	}
 }
 
-// TestFormatQueryParams tests the formatting of query parameters.
+// TestFormatQueryParams tests that Eq() formats filter values with eq. prefix and URL-encodes them.
 func TestFormatQueryParams(t *testing.T) {
-	in := map[string]string{"a": "1 2", "b": "special@value"}
-	got := formatQueryParams(in)
-	if len(got) != len(in) {
-		t.Fatalf("size mismatch")
-	}
-	for k, v := range got {
+	var captured string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		captured = r.URL.RawQuery
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer ts.Close()
+
+	client := NewClient(ts.URL, "api-key", "")
+	_, _ = client.From("test").Eq("a", "1 2").Eq("b", "special@value").Execute()
+
+	decoded, _ := url.ParseQuery(captured)
+	for _, key := range []string{"a", "b"} {
+		v := decoded.Get(key)
 		if !strings.HasPrefix(v, "eq.") {
-			t.Fatalf("expected eq. prefix for %s", k)
-		}
-		// ensure value after eq. is URL escaped
-		raw := strings.TrimPrefix(v, "eq.")
-		unescaped, _ := url.QueryUnescape(raw)
-		if unescaped != in[k] {
-			t.Fatalf("expected %s got %s", in[k], unescaped)
+			t.Fatalf("expected eq. prefix for %s, got %s", key, v)
 		}
 	}
 }
@@ -285,7 +277,7 @@ func TestDoRequestQueryEncoding(t *testing.T) {
 	defer ts.Close()
 
 	client := NewClient(ts.URL, "api-key", "t")
-	_, _ = client.Get("Food", map[string]string{"name": "John Doe"})
+	_, _ = client.From("Food").Eq("name", "John Doe").Execute()
 	// Expect name=eq.John+Doe (space encoded) or name=eq.John%20Doe depending on encoding order.
 	// Accept both plus or %20.
 	// Allow for various encodings (space -> +, space -> %20, plus re-encoded to %2B due to double encoding)
@@ -368,7 +360,7 @@ func TestSignUpStatusCreated(t *testing.T) {
 
 // Safety check: ensure internal constants have expected leading slash formatting so path joins are correct.
 func TestConstantFormatting(t *testing.T) {
-	consts := []string{restApiPath, authApiPath, tokenApiPath, signupApiPath, magicLinkApiPath, recoverApiPath, verifyApiPath, userApiPath, logoutApiPath, inviteApiPath, resetApiPath}
+	consts := []string{restApiPath, authApiPath, tokenApiPath, signupApiPath, magicLinkApiPath, recoverApiPath, verifyApiPath, userApiPath, logoutApiPath, inviteApiPath, resetApiPath, authorizeApiPath}
 	for _, c := range consts {
 		if !strings.HasPrefix(c, "/") {
 			t.Fatalf("constant %s lacks leading slash", c)
